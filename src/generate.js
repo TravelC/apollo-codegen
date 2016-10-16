@@ -3,26 +3,40 @@ import fs from 'fs'
 import { ToolError, logError } from './errors'
 import { loadSchema,  loadAndMergeQueryDocuments } from './loading'
 import { validateQueryDocument } from './validation'
-import { Compiler, stringifyIR } from './compilation'
+import { compileToIR, stringifyIR } from './compilation'
 import { generateSource } from './swift'
 
-export default function generate(inputPaths, schemaPath, outputPath, target) {
+export default function generate(inputPaths, schemaPath, outputPath, target, options) {
   const schema = loadSchema(schemaPath);
 
   const document = loadAndMergeQueryDocuments(inputPaths);
 
   validateQueryDocument(schema, document);
 
-  const context = new Compiler(schema, document);
+  const context = compileToIR(schema, document);
+  Object.assign(context, options);
 
-  const output = (target && target.toLowerCase() === 'json') ? generateIR(context) : generateSource(context);
+  let output;
+  switch (target) {
+    case 'json':
+      output = generateIR(context);
+      break;
+    default:
+      output = generateSource(context);
+      break;
+  }
 
-  fs.writeFileSync(outputPath, output);
+  if (outputPath) {
+    fs.writeFileSync(outputPath, output);
+  } else {
+    console.log(output);
+  }
 }
 
 function generateIR(context) {
   return stringifyIR({
-    operations: context.operations.map(operation => context.compileOperation(operation)),
-    fragments: context.fragments.map(fragment => context.compileFragment(fragment)),
+    operations: Object.values(context.operations),
+    fragments: Object.values(context.fragments),
+    typesUsed: context.typesUsed
   }, '\t');
 }

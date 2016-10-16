@@ -27,7 +27,9 @@ yargs
       output: {
         demand: true,
         describe: 'Output path for GraphQL schema file',
-        normalize: true
+        default: 'schema.json',
+        normalize: true,
+        coerce: path.resolve,
       },
       header: {
         alias: 'H',
@@ -53,34 +55,43 @@ yargs
     }
   )
   .command(
-    'generate <input...>',
+    'generate [input...]',
     'Generate code from a GraphQL schema and query documents',
     {
       schema: {
         demand: true,
         describe: 'Path to GraphQL schema file',
-        normalize: true
+        default: 'schema.json',
+        normalize: true,
+        coerce: path.resolve,
       },
       output: {
-        demand: true,
         describe: 'Output directory for the generated files',
-        normalize: true
+        normalize: true,
+        coerce: path.resolve,
       },
       target: {
         demand: false,
         describe: 'Code generation target language',
+        choices: ['swift', 'json'],
+        default: 'swift'
+      },
+      "passthrough-custom-scalars": {
+        demand: false,
+        describe: "Don't attempt to map custom scalars [temporary option]",
+        default: false
       }
     },
     argv => {
       const inputPaths = argv.input.map(input => path.resolve(input));
-      const schemaPath = path.resolve(argv.schema);
-      const outputPath = path.resolve(argv.output);
-      generate(inputPaths, schemaPath, outputPath, argv.target);
+      const options = { passthroughCustomScalars: argv["passthrough-custom-scalars"] };
+      generate(inputPaths, argv.schema, argv.output, argv.target, options);
     },
   )
   .fail(function(message, error) {
-    handleError(error ? error : new Error(message));
+    handleError(error ? error : new ToolError(message));
   })
   .help()
+  .version()
   .strict()
   .argv

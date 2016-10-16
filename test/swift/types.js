@@ -1,67 +1,73 @@
-import { assert, expect } from 'chai';
+import { expect } from 'chai';
 
 import { stripIndent } from 'common-tags'
 
 import {
-  GraphQLID,
   GraphQLString,
+  GraphQLInt,
+  GraphQLFloat,
+  GraphQLBoolean,
+  GraphQLID,
   GraphQLList,
-  GraphQLNonNull
+  GraphQLNonNull,
+  GraphQLScalarType,
 } from 'graphql';
 
 import { loadSchema } from '../../src/loading'
-
-import CodeGenerator from '../../src/CodeGenerator';
-
-import { typeNameFromGraphQLType, typeDeclarationForGraphQLType } from '../../src/swift/types'
-
 const schema = loadSchema(require.resolve('../starwars/schema.json'));
 
-describe('#typeNameFromGraphQLType()', () => {
-  it('should return GraphQLID? for GraphQLID', () => {
-    assert.equal(typeNameFromGraphQLType(GraphQLID), 'GraphQLID?');
-  });
+import CodeGenerator from '../../src/utilities/CodeGenerator';
 
-  it('should return String? for GraphQLString', () => {
-    assert.equal(typeNameFromGraphQLType(GraphQLString), 'String?');
-  });
+import { typeNameFromGraphQLType } from '../../src/swift/types'
 
-  it('should return String for GraphQLNonNull(GraphQLString)', () => {
-    assert.equal(typeNameFromGraphQLType(new GraphQLNonNull(GraphQLString)), 'String');
-  });
+describe('Swift code generation: Types', function() {
+  describe('#typeNameFromGraphQLType()', function() {
+    it('should return String? for GraphQLString', function() {
+      expect(typeNameFromGraphQLType({}, GraphQLString)).to.equal('String?');
+    });
 
-  it('should return [String?]? for GraphQLList(GraphQLString)', () => {
-    assert.equal(typeNameFromGraphQLType(new GraphQLList(GraphQLString)), '[String?]?');
-  });
+    it('should return String for GraphQLNonNull(GraphQLString)', function() {
+      expect(typeNameFromGraphQLType({}, new GraphQLNonNull(GraphQLString))).to.equal('String');
+    });
 
-  it('should return [String?] for GraphQLNonNull(GraphQLList(GraphQLString))', () => {
-    assert.equal(typeNameFromGraphQLType(new GraphQLNonNull(new GraphQLList(GraphQLString))), '[String?]');
-  });
+    it('should return [String?]? for GraphQLList(GraphQLString)', function() {
+      expect(typeNameFromGraphQLType({}, new GraphQLList(GraphQLString))).to.equal('[String?]?');
+    });
 
-  it('should return [String]? for GraphQLList(GraphQLNonNull(GraphQLString))', () => {
-    assert.equal(typeNameFromGraphQLType(new GraphQLList(new GraphQLNonNull(GraphQLString))), '[String]?');
-  });
+    it('should return [String?] for GraphQLNonNull(GraphQLList(GraphQLString))', function() {
+      expect(typeNameFromGraphQLType({}, new GraphQLNonNull(new GraphQLList(GraphQLString)))).to.equal('[String?]');
+    });
 
-  it('should return [String] for GraphQLNonNull(GraphQLList(GraphQLNonNull(GraphQLString)))', () => {
-    assert.equal(typeNameFromGraphQLType(new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString)))), '[String]');
-  });
-});
+    it('should return [String]? for GraphQLList(GraphQLNonNull(GraphQLString))', function() {
+      expect(typeNameFromGraphQLType({}, new GraphQLList(new GraphQLNonNull(GraphQLString)))).to.equal('[String]?');
+    });
 
-describe('#typeDeclarationForGraphQLType()', () => {
-  it('should generate an enum declaration for a GraphQLEnumType', () => {
-    const generator = new CodeGenerator();
+    it('should return [String] for GraphQLNonNull(GraphQLList(GraphQLNonNull(GraphQLString)))', function() {
+      expect(typeNameFromGraphQLType({}, new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))))).to.equal('[String]');
+    });
 
-    typeDeclarationForGraphQLType(generator, schema.getType('Episode'));
+    it('should return Int? for GraphQLInt', function() {
+      expect(typeNameFromGraphQLType({}, GraphQLInt)).to.equal('Int?');
+    });
 
-    expect(generator.output).to.equal(stripIndent`
-      /// The episodes in the Star Wars trilogy
-      public enum Episode: String {
-        case newhope = "NEWHOPE" /// Star Wars Episode IV: A New Hope, released in 1977.
-        case empire = "EMPIRE" /// Star Wars Episode V: The Empire Strikes Back, released in 1980.
-        case jedi = "JEDI" /// Star Wars Episode VI: Return of the Jedi, released in 1983.
-      }
+    it('should return Float? for GraphQLFloat', function() {
+      expect(typeNameFromGraphQLType({}, GraphQLFloat)).to.equal('Float?');
+    });
 
-      extension Episode: JSONDecodable, JSONEncodable {}
-    `);
+    it('should return Bool? for GraphQLBoolean', function() {
+      expect(typeNameFromGraphQLType({}, GraphQLBoolean)).to.equal('Bool?');
+    });
+
+    it('should return GraphQLID? for GraphQLID', function() {
+      expect(typeNameFromGraphQLType({}, GraphQLID)).to.equal('GraphQLID?');
+    });
+
+    it('should return String? for a custom scalar type', function() {
+      expect(typeNameFromGraphQLType({}, new GraphQLScalarType({ name: 'CustomScalarType', serialize: String }))).to.equal('String?');
+    });
+
+    it('should return a passed through custom scalar type with the passthroughCustomScalars option', function() {
+      expect(typeNameFromGraphQLType({ passthroughCustomScalars: true }, new GraphQLScalarType({ name: 'CustomScalarType', serialize: String }))).to.equal('CustomScalarType?');
+    });
   });
 });

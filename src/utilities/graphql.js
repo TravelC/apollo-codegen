@@ -1,13 +1,21 @@
-// Utility functions extracted from graphql-js
-
 import {
+  isEqualType,
+  isTypeSubTypeOf,
+  isAbstractType,
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
   TypeNameMetaFieldDef,
   GraphQLObjectType,
   GraphQLInterfaceType,
-  GraphQLUnionType
+  GraphQLUnionType,
+  GraphQLEnumType
 } from 'graphql';
+
+export function isTypeProperSuperTypeOf(schema, maybeSuperType, subType) {
+  return isEqualType(maybeSuperType, subType) || (isAbstractType(maybeSuperType) && schema.isPossibleType(maybeSuperType, subType));
+}
+
+// Utility functions extracted from graphql-js
 
 /**
  * Extracts the root type of the operation from the schema.
