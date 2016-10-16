@@ -16,13 +16,27 @@ import {
   GraphQLObjectType
 } from 'graphql';
 
+import {
+  typeNameFromGraphQLType
+} from './types';
+
 export function classDeclaration(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
   generator.print(wrap('', join(modifiers, ' '), ' '));
   generator.printOnNewline(`@interface ${ className } : ${ superClass } `);
   generator.print(wrap('<', join(adoptedProtocols, ', '), '>'));
-  generator.withinBlock(closure);
+  generator.printOnNewline(closure());
+  generator.printOnNewline(`@end`);
+}
+
+export function classImplementation(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, closure) {
+  generator.printNewlineIfNeeded();
+  generator.printNewline();
+  generator.print(wrap('', join(modifiers, ' '), ' '));
+  generator.printOnNewline(`@implementation ${ className }`);
+  // generator.print(wrap('<', join(adoptedProtocols, ', '), '>'));
+  generator.printOnNewline(closure());
   generator.printOnNewline(`@end`);
 }
 
@@ -62,11 +76,17 @@ function retainTypeWithFieldType(type) {
 }
 
 function nullabilityWithFieldType(type) {
+  if (type instanceof GraphQLEnumType) {
+    return '';
+  }
   return type instanceof GraphQLNonNull ? 'nonnull' : 'nullable';
 }
 
 export function propertyDeclaration(generator, { propertyName, typeName, description, fieldType }) {
-  generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)}, readonly, ${nullabilityWithFieldType(fieldType)}) ${typeName}${propertyName};`);
+  const nullabilitySpecifier = nullabilityWithFieldType(fieldType);
+  const nullabilityComponent = nullabilitySpecifier.length > 0 ?  ' '+ nullabilitySpecifier + ',' : '';
+
+  generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${typeName}${propertyName};`);
   generator.print(description && ` // ${description}`);
 }
 

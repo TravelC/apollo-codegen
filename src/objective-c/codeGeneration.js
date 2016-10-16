@@ -9,7 +9,8 @@ import {
   GraphQLList,
   GraphQLNonNull,
   GraphQLID,
-  GraphQLInputObjectType
+  GraphQLInputObjectType,
+  GraphQLString
 } from 'graphql'
 
 import  { isTypeProperSuperTypeOf } from '../utilities/graphql'
@@ -24,6 +25,7 @@ import {
 
 import {
   classDeclaration,
+  classImplementation,
   structDeclaration,
   propertyDeclaration,
   propertyDeclarations
@@ -51,6 +53,11 @@ export function generateObjCSource(context) {
 
   Object.values(context.operations).forEach(operation => {
     classDeclarationForOperation(generator, operation);
+    classImplementationForOperation(generator, operation, () =>{
+      context.typesUsed.forEach(type => {
+        typeImplemenationForGraphQLType(generator, type);
+      });
+    });
   });
 
   Object.values(context.fragments).forEach(fragment => {
@@ -59,19 +66,7 @@ export function generateObjCSource(context) {
 
   return generator.output;
 }
-export function classImplementationForOperation(
-  generator,
-  {
-    operationName,
-    operationType,
-    variables,
-    fields,
-    fragmentsReferenced,
-    source,
-  }
-) {
 
-}
 export function classDeclarationForOperation(
   generator,
   {
@@ -106,6 +101,69 @@ export function classDeclarationForOperation(
     modifiers: [],
     adoptedProtocols: [protocol]
   }, () => {
+    if (variables && variables.length > 0) {
+      const properties = propertiesFromFields(generator.context, variables);
+      generator.printNewlineIfNeeded();
+      propertyDeclarations(generator, properties);
+      generator.printNewlineIfNeeded();
+      initializerDeclarationForProperties(generator, properties);
+      generator.print(';');
+      generator.printNewlineIfNeeded();
+    }
+
+    structDeclarationForSelectionSet(
+      generator,
+      {
+        structName: "Data",
+        fields
+      }
+    );
+  });
+}
+
+export function classImplementationForOperation(
+  generator,
+  {
+    operationName,
+    operationType,
+    variables,
+    fields,
+    fragmentsReferenced,
+    source,
+  },
+  closure
+) {
+  let className;
+  let protocol;
+
+  switch (operationType) {
+    case 'query':
+      className = `${pascalCase(operationName)}Query`;
+      protocol = 'GraphQLQuery';
+      break;
+    case 'mutation':
+      className = `${pascalCase(operationName)}Mutation`;
+      protocol = 'GraphQLMutation';
+      break;
+    default:
+      throw new GraphQLError(`Unsupported operation type "${operationType}"`);
+  }
+
+  classImplementation(generator, {
+    className,
+    superClass: "NSObject",
+    modifiers: [],
+    adoptedProtocols: [protocol]
+  }, () => {
+    if (variables && variables.length > 0) {
+      const properties = propertiesFromFields(generator.context, variables);
+      generator.printNewlineIfNeeded();
+      initializerImplementationForProperties(generator, properties);
+      generator.printNewlineIfNeeded();
+      mappedProperty(generator, { propertyName: 'variables', propertyType: 'NSDictionary *' }, properties);
+      generator.printNewlineIfNeeded();
+    }
+
     if (source) {
       generator.printOnNewline(`- (nonnull NSString *)operationDefinition`);
       generator.withinBlock(() => {
@@ -122,50 +180,60 @@ export function classDeclarationForOperation(
       });
     }
 
-    if (variables && variables.length > 0) {
-      const properties = propertiesFromFields(generator.context, variables);
-      generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, properties);
-      generator.printNewlineIfNeeded();
-      initializerDeclarationForProperties(generator, properties);
-      generator.printNewlineIfNeeded();
-      mappedProperty(generator, { propertyName: 'variables', propertyType: 'GraphQLMap?' }, properties);
-    }
-
-    structDeclarationForSelectionSet(
-      generator,
-      {
-        structName: "Data",
-        fields
-      }
-    );
+    generator.printOnNewline(closure());
   });
 }
 
 export function initializerDeclarationForProperties(generator, properties) {
   generator.printOnNewline(`- (nonnull instancetype)initWith`);
   generator.print(join(properties.map(({ propertyName, fieldType }) =>
-
     `${propertyName}:(${(fieldType instanceof GraphQLNonNull) ? 'nonnull ' : ''}${typeNameFromGraphQLType(generator.context, fieldType)})${propertyName}`
   ), ' '));
-  generator.print(')');
+}
 
+export function initializerImplementationForProperties(generator, properties) {
+  initializerDeclarationForProperties(generator, properties);
   generator.withinBlock(() => {
-    properties.forEach(({ propertyName }) => {
-      generator.printOnNewline(`self.${propertyName} = ${propertyName};`);
+    generator.withIndent(() => {
+      generator.printOnNewline('if (self = super init]) {');
+      generator.withIndent(() => {
+        properties.forEach(({ propertyName }) => {
+          generator.printOnNewline(`_${propertyName} = ${propertyName};`);
+        });
+      });
+      generator.printOnNewline('}');
+      generator.printOnNewline('return self');
     });
   });
 }
 
 export function mappedProperty(generator, { propertyName, propertyType }, properties) {
-  generator.printOnNewline(`public var ${propertyName}: ${propertyType}`);
+  generator.printOnNewline(`- (nullable ${propertyType})${propertyName}`);
   generator.withinBlock(() => {
-    generator.printOnNewline(wrap(
-      `return @{`,
-      join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ' : '),
-      `}`
-    ));
-  });
+    generator.printOnNewline('return @{');
+    generator.withIndent(() => {
+      properties.map(({ fieldName, fieldType }) => {
+        generator.printOnNewline(
+          `@"${fieldName}": ${stringValueForProperty(fieldName, fieldType)}, `
+        );
+      })
+    });
+    generator.printOnNewline('};');
+  })
+}
+
+export function stringValueForProperty(fieldName, fieldType) {
+  if (fieldType instanceof GraphQLNonNull) {
+    return stringValueForProperty(fieldName, fieldType.ofType);
+  }
+
+  if (fieldType instanceof GraphQLEnumType) {
+    return `[[self class] ${enumStringMappingFunctionNameForType(fieldType)}]`
+  } else if (fieldType === GraphQLString) {
+    return fieldName;
+  } else {
+    return `[_${camelCase(fieldName)} stringValue]`
+  }
 }
 
 export function structDeclarationForFragment(
@@ -247,20 +315,19 @@ export function structDeclarationForSelectionSet(
     generator.printNewlineIfNeeded();
 
     if (parentType) {
-      generator.printOnNewline('public let __typename');
-
-      if (isAbstractType(parentType)) {
-        generator.print(`: String`);
-      } else {
-        generator.print(` = "${String(parentType)}"`);
-      }
+      propertyDeclaration(generator, { propertyName: '__typename', typeName: 'NSString *', fieldType: GraphQLString });
+      // if (isAbstractType(parentType)) {
+      //   generator.print(`: String`);
+      // } else {
+      //   generator.print(` = "${String(parentType)}"`);
+      // }
     }
 
     propertyDeclarations(generator, properties);
 
     if (fragmentProperties && fragmentProperties.length > 0) {
       generator.printNewlineIfNeeded();
-      propertyDeclaration(generator, { propertyName: 'fragments', typeName: 'Fragments' })
+      propertyDeclaration(generator, { propertyName: 'fragments', typeName: 'Fragments' });
     }
 
     if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
@@ -419,20 +486,13 @@ function enumerationDeclaration(generator, type) {
 
   generator.printNewlineIfNeeded();
   generator.printOnNewline(description && `// ${description}`);
-  generator.printOnNewline(`const struct ${name}`);
+  generator.printOnNewline(`typedef NS_ENUM(NSUInteger, ${name})`);
   generator.withinBlock(() => {
     values.forEach(value =>
-      generator.printOnNewline(`_Nonnull APLiteralString ${camelCase(value.name)}; ${wrap(' // ', value.description)}`)
+      generator.printOnNewline(`${name}${pascalCase(value.name)}, ${wrap(' // ', value.description)}`)
     );
   });
-  generator.print(` ${name};`)
-  generator.printOnNewline(`const struct ${name} ${name} = `);
-  generator.withinBlock(() => {
-    values.forEach(value =>
-      generator.printOnNewline(`.${camelCase(value.name)} = @"${value.value}", ${wrap(' // ', value.description)}`)
-    );
-  });
-  generator.print(`;`)
+  generator.print(';');
 }
 
 function structDeclarationForInputObjectType(generator, type) {
@@ -445,4 +505,46 @@ function structDeclarationForInputObjectType(generator, type) {
     generator.printNewline();
     mappedProperty(generator, { propertyName: 'jsonValue', propertyType: 'JSONValue' }, properties);
   });
+}
+
+export function typeImplemenationForGraphQLType(generator, type) {
+  if (type instanceof GraphQLEnumType) {
+    enumerationImplementation(generator, type);
+  }
+  // else if (type instanceof GraphQLInputObjectType) {
+  //   structImplementationForInputObjectType(generator, type);
+  // }
+}
+
+function enumerationImplementation(generator, type) {
+  const { name, description } = type;
+
+  // Generate mapping
+  const mappingName = camelCase(name + 'Mapping');
+  generator.printNewlineIfNeeded();
+  generator.printOnNewline(description && `// ${description}`);
+  generator.printOnNewline(`+ (nonnull NSDictionary *)${mappingName}`);
+  generator.withinBlock(() => {
+    generator.printOnNewline(`return @{`);
+    type.getValues().forEach(value => {
+        generator.withIndent(() => {
+          generator.printOnNewline(`@(${name}${pascalCase(value.name)}) : @"${value.value}", ${wrap(' // ', value.description)}`)
+        });
+    });
+    generator.printOnNewline(`};`)
+  });
+  generator.printNewlineIfNeeded();
+
+  // Mapping function
+  generator.printOnNewline(`+ (nonnull NSString *)${enumStringMappingFunctionNameForType(type)}:(${name})mapping`);
+  generator.withinBlock(() => {
+    generator.printOnNewline(`return self.${mappingName}[mapping];`)
+  });
+  generator.printNewlineIfNeeded();
+}
+
+function enumStringMappingFunctionNameForType(type) {
+  const { name } = type;
+  const mappingName = camelCase(name + 'Mapping');
+  return `stringWith${pascalCase(mappingName)}`;
 }
