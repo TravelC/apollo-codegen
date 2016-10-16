@@ -37,12 +37,13 @@ import {
 
 import CodeGenerator from '../utilities/CodeGenerator';
 
-export function generateSwiftSource(context) {
+export function generateObjCSource(context) {
   const generator = new CodeGenerator(context);
 
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printNewline();
-  generator.printOnNewline('import Apollo');
+  generator.printOnNewline('@import Apollo;');
+  generator.printOnNewline('typedef __unsafe_unretained NSString *APLiteralString;');
 
   context.typesUsed.forEach(type => {
     typeDeclarationForGraphQLType(generator, type);
@@ -89,11 +90,12 @@ export function classDeclarationForOperation(
 
   classDeclaration(generator, {
     className,
-    modifiers: ['public', 'final'],
+    superClass: "NSObject",
+    modifiers: [],
     adoptedProtocols: [protocol]
   }, () => {
     if (source) {
-      generator.printOnNewline('public static let operationDefinition =');
+      generator.printOnNewline(`static NSString * const k${className}QueryString =`);
       generator.withIndent(() => {
         multilineString(generator, source);
       });
@@ -127,19 +129,16 @@ export function classDeclarationForOperation(
 }
 
 export function initializerDeclarationForProperties(generator, properties) {
-  generator.printOnNewline(`public init`);
-  generator.print('(');
+  generator.printOnNewline(`- (nonnull instancetype)initWith`);
   generator.print(join(properties.map(({ propertyName, fieldType }) =>
-    join([
-      `${propertyName}: ${typeNameFromGraphQLType(generator.context, fieldType)}`,
-      !(fieldType instanceof GraphQLNonNull) && ' = nil'
-    ])
-  ), ', '));
+
+    `${propertyName}:(${(fieldType instanceof GraphQLNonNull) ? 'nonnull ' : ''}${typeNameFromGraphQLType(generator.context, fieldType)})${propertyName}`
+  ), ' '));
   generator.print(')');
 
   generator.withinBlock(() => {
     properties.forEach(({ propertyName }) => {
-      generator.printOnNewline(`self.${propertyName} = ${propertyName}`);
+      generator.printOnNewline(`self.${propertyName} = ${propertyName};`);
     });
   });
 }
@@ -148,9 +147,9 @@ export function mappedProperty(generator, { propertyName, propertyType }, proper
   generator.printOnNewline(`public var ${propertyName}: ${propertyType}`);
   generator.withinBlock(() => {
     generator.printOnNewline(wrap(
-      `return [`,
-      join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', '),
-      `]`
+      `return @{`,
+      join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ' : '),
+      `}`
     ));
   });
 }
@@ -405,15 +404,21 @@ function enumerationDeclaration(generator, type) {
   const values = type.getValues();
 
   generator.printNewlineIfNeeded();
-  generator.printOnNewline(description && `/// ${description}`);
-  generator.printOnNewline(`public enum ${name}: String`);
+  generator.printOnNewline(description && `// ${description}`);
+  generator.printOnNewline(`const struct ${name}`);
   generator.withinBlock(() => {
     values.forEach(value =>
-      generator.printOnNewline(`case ${camelCase(value.name)} = "${value.value}"${wrap(' /// ', value.description)}`)
+      generator.printOnNewline(`_Nonnull APLiteralString ${camelCase(value.name)}; ${wrap(' // ', value.description)}`)
     );
   });
-  generator.printNewline();
-  generator.printOnNewline(`extension ${name}: JSONDecodable, JSONEncodable {}`);
+  generator.print(` ${name};`)
+  generator.printOnNewline(`const struct ${name} ${name} = `);
+  generator.withinBlock(() => {
+    values.forEach(value =>
+      generator.printOnNewline(`.${camelCase(value.name)} = @"${value.value}", ${wrap(' // ', value.description)}`)
+    );
+  });
+  generator.print(`;`)
 }
 
 function structDeclarationForInputObjectType(generator, type) {

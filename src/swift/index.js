@@ -1,1 +1,1 @@
-export { generateSource } from './codeGeneration';
+export { generateSwiftSource } from './codeGeneration';
