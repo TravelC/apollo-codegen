@@ -3,6 +3,19 @@ import {
   wrap,
 } from '../utilities/printing';
 
+import {
+  GraphQLString,
+  GraphQLInt,
+  GraphQLFloat,
+  GraphQLBoolean,
+  GraphQLID,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLScalarType,
+  GraphQLEnumType,
+  GraphQLObjectType
+} from 'graphql';
+
 export function classDeclaration(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
@@ -22,8 +35,38 @@ export function structDeclaration(generator, { structName, description, adoptedP
   }, closure)
 }
 
-export function propertyDeclaration(generator, { propertyName, typeName, description }) {
-  generator.printOnNewline(`@property(nonatomic, strong, readwrite) ${typeName}${propertyName};`);
+const builtInRetainMap = {
+  [GraphQLString.name]: 'copy',
+  [GraphQLInt.name]: 'strong',
+  [GraphQLFloat.name]: 'strong',
+  [GraphQLBoolean.name]: 'strong',
+}
+
+function retainTypeWithFieldType(type) {
+  if (type instanceof GraphQLNonNull) {
+    return retainTypeWithFieldType(type.ofType);
+  }
+
+  if (type instanceof GraphQLList) {
+    return 'copy';
+  } else if (type instanceof GraphQLObjectType) {
+    return 'strong';
+  } else if (type instanceof GraphQLEnumType) {
+    return 'assign';
+  } else if (type instanceof GraphQLScalarType) {
+    return builtInRetainMap[type.name] || retainTypeWithFieldType(GraphQLString);
+  } else {
+    console.log(type);
+    return 'strong';
+  }
+}
+
+function nullabilityWithFieldType(type) {
+  return type instanceof GraphQLNonNull ? 'nonnull' : 'nullable';
+}
+
+export function propertyDeclaration(generator, { propertyName, typeName, description, fieldType }) {
+  generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)}, readonly, ${nullabilityWithFieldType(fieldType)}) ${typeName}${propertyName};`);
   generator.print(description && ` // ${description}`);
 }
 

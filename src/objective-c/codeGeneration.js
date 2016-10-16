@@ -59,7 +59,19 @@ export function generateObjCSource(context) {
 
   return generator.output;
 }
+export function classImplementationForOperation(
+  generator,
+  {
+    operationName,
+    operationType,
+    variables,
+    fields,
+    fragmentsReferenced,
+    source,
+  }
+) {
 
+}
 export function classDeclarationForOperation(
   generator,
   {
@@ -95,9 +107,11 @@ export function classDeclarationForOperation(
     adoptedProtocols: [protocol]
   }, () => {
     if (source) {
-      generator.printOnNewline(`static NSString * const k${className}QueryString =`);
-      generator.withIndent(() => {
-        multilineString(generator, source);
+      generator.printOnNewline(`- (nonnull NSString *)operationDefinition`);
+      generator.withinBlock(() => {
+        generator.withIndent(() => {
+          multilineString(generator, source);
+        })
       });
     }
 
