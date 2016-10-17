@@ -82,17 +82,17 @@ function nullabilityWithFieldType(type) {
   return type instanceof GraphQLNonNull ? 'nonnull' : 'nullable';
 }
 
-export function propertyDeclaration(generator, { propertyName, typeName, description, fieldType, namespace = '' }) {
+export function propertyDeclaration(generator, { propertyName, typeName, description, fieldType}) {
   const nullabilitySpecifier = nullabilityWithFieldType(fieldType);
   const nullabilityComponent = nullabilitySpecifier.length > 0 ?  ' '+ nullabilitySpecifier + ',' : '';
 
-  generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${namespace}${typeName}${propertyName};`);
+  generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${typeName}${propertyName};`);
   generator.print(description && ` // ${description}`);
 }
 
-export function propertyDeclarations(generator, properties, namespace = '') {
+export function propertyDeclarations(generator, properties) {
   if (!properties) return;
-  properties.forEach(property => propertyDeclaration(generator, property, namespace));
+  properties.forEach(property => propertyDeclaration(generator, property));
 }
 
 export function protocolDeclaration(generator, { protocolName, adoptedProtocols, properties }, closure) {

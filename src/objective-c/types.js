@@ -35,13 +35,13 @@ export function typeNameFromGraphQLType(context, type, bareTypeName, namespace =
 
   let typeName;
   if (type instanceof GraphQLList) {
-    typeName = 'NSArray<' + typeNameFromGraphQLType(context, type.ofType, bareTypeName) + '> *';
+    typeName = 'NSArray<' + typeNameFromGraphQLType(context, type.ofType, bareTypeName, namespace) + '> *';
   } else if (type instanceof GraphQLScalarType) {
     typeName = builtInScalarMap[type.name] || (context.passthroughCustomScalars ? type.name: GraphQLString);
   } else if (type instanceof GraphQLEnumType) {
     typeName = type.name + ' ';
   } else {
-    typeName = namespace + (bareTypeName || type.name) + ' ';
+    typeName = namespace + (bareTypeName || type.name) + ' *';
   }
 
   return typeName;
