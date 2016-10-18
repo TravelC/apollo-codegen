@@ -27,6 +27,7 @@ import {
   classDeclaration,
   classImplementation,
   structDeclaration,
+  structImplementation,
   propertyDeclaration,
   propertyDeclarations
 } from './language';
@@ -276,7 +277,7 @@ export function structDeclarationForSelectionSet(
   generator,
   {
     structName,
-    adoptedProtocols = ['GraphQLMapConvertible'],
+    adoptedProtocols = ['GraphQLMapDecodable'],
     parentType,
     possibleTypes,
     fields,
@@ -295,8 +296,6 @@ export function structDeclarationForSelectionSet(
       namespace
     },
     () => {
-      namespace += structName;
-
       if (beforeClosure) {
         beforeClosure();
       }
@@ -308,6 +307,30 @@ export function structDeclarationForSelectionSet(
         generator.print(']');
       }
 
+      generator.printNewlineIfNeeded();
+
+      if (parentType) {
+        propertyDeclaration(generator, { propertyName: '__typename', typeName: 'NSString *', fieldType: GraphQLString });
+        // if (isAbstractType(parentType)) {
+        //   generator.print(`: String`);
+        // } else {
+        //   generator.print(` = "${String(parentType)}"`);
+        // }
+      }
+
+      propertyDeclarations(generator, properties);
+      generator.printNewlineIfNeeded();
+      generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(NSDictionary *)dictionary;');
+      generator.printNewlineIfNeeded();
+  });
+  structImplementation(
+    generator,
+    {
+      structName,
+      adoptedProtocols,
+      namespace
+    },
+    () => {
       const fragmentProperties = fragmentSpreads && fragmentSpreads.map(fragmentName => {
         const fragment = generator.context.fragments[fragmentName];
         if (!fragment) {
@@ -326,19 +349,6 @@ export function structDeclarationForSelectionSet(
         return { ...inlineFragment, propertyName, typeName, bareTypeName };
       });
 
-      generator.printNewlineIfNeeded();
-
-      if (parentType) {
-        propertyDeclaration(generator, { propertyName: '__typename', typeName: 'NSString *', fieldType: GraphQLString });
-        // if (isAbstractType(parentType)) {
-        //   generator.print(`: String`);
-        // } else {
-        //   generator.print(` = "${String(parentType)}"`);
-        // }
-      }
-
-      propertyDeclarations(generator, properties);
-
       if (fragmentProperties && fragmentProperties.length > 0) {
         generator.printNewlineIfNeeded();
         propertyDeclaration(generator, { propertyName: 'fragments', typeName: 'Fragments', namespace });
@@ -350,77 +360,82 @@ export function structDeclarationForSelectionSet(
       }
 
       generator.printNewlineIfNeeded();
-
-      generator.printOnNewline('- (nonnull instancetype) initWithDictionary:(NSDictionary *) dictionary');
+      generator.printOnNewline('- (nonnull instancetype) initWithDictionary:(NSDictionary *)dictionary');
       generator.withinBlock(() => {
-        if (parentType && isAbstractType(parentType)) {
-          generator.printOnNewline(`__typename = try map.value(forKey: "__typename")`);
-        }
+        generator.printOnNewline('if (self = [super init])');
+        generator.withinBlock(() => {
+          if (parentType && isAbstractType(parentType)) {
+            generator.printOnNewline(`__typename = try map.value(forKey: "__typename")`);
+          }
 
-        if (properties) {
-          properties.forEach(property => initializationForProperty(generator, property));
-        }
+          if (properties) {
+            properties.forEach(property => initializationForProperty(generator, property));
+          }
+
+          if (fragmentProperties && fragmentProperties.length > 0) {
+            generator.printNewlineIfNeeded();
+            fragmentProperties.forEach(({ propertyName, typeName, bareTypeName, isProperSuperType }) => {
+              generator.printOnNewline(`let ${propertyName} = try ${typeName}(map: map`);
+              if (isProperSuperType) {
+                generator.print(')');
+              } else {
+                generator.print(`, ifTypeMatches: __typename)`);
+              }
+            });
+            generator.printOnNewline(`fragments = Fragments(`);
+            generator.print(join(fragmentSpreads.map(fragmentName => {
+              const propertyName = camelCase(fragmentName);
+              return `${propertyName}: ${propertyName}`;
+            }), ', '));
+            generator.print(')');
+          }
+
+          if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
+            generator.printNewlineIfNeeded();
+            inlineFragmentProperties.forEach(({ propertyName, typeName, bareTypeName }) => {
+              generator.printOnNewline(`${propertyName} = try ${bareTypeName}(map: map, ifTypeMatches: __typename)`);
+            });
+          }
+        });
 
         if (fragmentProperties && fragmentProperties.length > 0) {
-          generator.printNewlineIfNeeded();
-          fragmentProperties.forEach(({ propertyName, typeName, bareTypeName, isProperSuperType }) => {
-            generator.printOnNewline(`let ${propertyName} = try ${typeName}(map: map`);
-            if (isProperSuperType) {
-              generator.print(')');
-            } else {
-              generator.print(`, ifTypeMatches: __typename)`);
+          structDeclaration(
+            generator,
+            {
+              structName: 'Fragments'
+            },
+            () => {
+              fragmentProperties.forEach(({ propertyName, typeName, isProperSuperType }) => {
+                if (!isProperSuperType) {
+                  typeName += '?';
+                }
+                propertyDeclaration(generator, { propertyName, typeName });
+              })
             }
-          });
-          generator.printOnNewline(`fragments = Fragments(`);
-          generator.print(join(fragmentSpreads.map(fragmentName => {
-            const propertyName = camelCase(fragmentName);
-            return `${propertyName}: ${propertyName}`;
-          }), ', '));
-          generator.print(')');
+          );
         }
 
         if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
-          generator.printNewlineIfNeeded();
-          inlineFragmentProperties.forEach(({ propertyName, typeName, bareTypeName }) => {
-            generator.printOnNewline(`${propertyName} = try ${bareTypeName}(map: map, ifTypeMatches: __typename)`);
+          inlineFragmentProperties.forEach(property => {
+            structDeclarationForSelectionSet(
+              generator,
+              {
+                structName: property.bareTypeName,
+                parentType: property.typeCondition,
+                possibleTypes: possibleTypesForType(generator.context, property.typeCondition),
+                adoptedProtocols: ['GraphQLConditionalFragment'],
+                fields: property.fields,
+                fragmentSpreads: property.fragmentSpreads,
+                namespace
+              }
+            );
           });
         }
-      });
-
-      if (fragmentProperties && fragmentProperties.length > 0) {
-        structDeclaration(
-          generator,
-          {
-            structName: 'Fragments'
-          },
-          () => {
-            fragmentProperties.forEach(({ propertyName, typeName, isProperSuperType }) => {
-              if (!isProperSuperType) {
-                typeName += '?';
-              }
-              propertyDeclaration(generator, { propertyName, typeName });
-            })
-          }
-        );
-      }
-
-      if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
-        inlineFragmentProperties.forEach(property => {
-          structDeclarationForSelectionSet(
-            generator,
-            {
-              structName: property.bareTypeName,
-              parentType: property.typeCondition,
-              possibleTypes: possibleTypesForType(generator.context, property.typeCondition),
-              adoptedProtocols: ['GraphQLConditionalFragment'],
-              fields: property.fields,
-              fragmentSpreads: property.fragmentSpreads,
-              namespace
-            }
-          );
+        generator.printOnNewline('return self');
         });
-      }
+        generator.printNewlineIfNeeded();
   });
+
   if (properties) {
     properties.filter(property => property.isComposite).forEach(property => {
       structDeclarationForSelectionSet(

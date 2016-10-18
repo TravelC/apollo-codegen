@@ -30,11 +30,11 @@ export function classDeclaration(generator, { className, modifiers, superClass, 
   generator.printOnNewline(`@end`);
 }
 
-export function classImplementation(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, closure) {
+export function classImplementation(generator, { className, modifiers, superClass, adoptedProtocols = [], properties, namespace = '' }, closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
   generator.print(wrap('', join(modifiers, ' '), ' '));
-  generator.printOnNewline(`@implementation ${ className }`);
+  generator.printOnNewline(`@implementation ${namespace}${ className }`);
   // generator.print(wrap('<', join(adoptedProtocols, ', '), '>'));
   generator.printOnNewline(closure());
   generator.printOnNewline(`@end`);
@@ -43,6 +43,16 @@ export function classImplementation(generator, { className, modifiers, superClas
 export function structDeclaration(generator, { structName, description, adoptedProtocols = [], namespace = '' }, closure) {
   generator.printOnNewline(description);
   classDeclaration(generator, {
+    className: structName,
+    superClass: "NSObject",
+    adoptedProtocols: adoptedProtocols,
+    namespace
+  }, closure)
+}
+
+export function structImplementation(generator, { structName, description, adoptedProtocols = [], namespace = '' }, closure) {
+  generator.printOnNewline(description);
+  classImplementation(generator, {
     className: structName,
     superClass: "NSObject",
     adoptedProtocols: adoptedProtocols,
