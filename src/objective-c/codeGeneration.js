@@ -38,6 +38,11 @@ import {
   typeNameFromGraphQLType,
 } from './types';
 
+import {
+  initializeProperty,
+} from './mapping';
+
+
 import CodeGenerator from '../utilities/CodeGenerator';
 
 export function generateObjCSource(context) {
@@ -45,9 +50,8 @@ export function generateObjCSource(context) {
 
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printNewline();
-  generator.printOnNewline('@import Apollo;');
-  generator.printNewlineIfNeeded();
-  generator.printOnNewline('typedef __unsafe_unretained NSString *APLiteralString;');
+  generator.printOnNewline('#import <Foundation/Foundation.h>');
+  generator.printOnNewline('#import <Apollo/Apollo.h>');
 
   context.typesUsed.forEach(type => {
     typeDeclarationForGraphQLType(generator, type);
@@ -77,8 +81,7 @@ export function classDeclarationForOperation(
     variables,
     fields,
     fragmentsReferenced,
-    source,
-    namespace
+    source
   }
 ) {
 
@@ -104,11 +107,13 @@ export function classDeclarationForOperation(
     superClass: "NSObject",
     modifiers: [],
     adoptedProtocols: [protocol],
-  }, () => {
+  },
+  '',
+  () => {
     if (variables && variables.length > 0) {
       const properties = propertiesFromFields(generator.context, variables);
       generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, properties);
+      propertyDeclarations(generator, properties, namespaceAccumulator);
       generator.printNewlineIfNeeded();
       initializerDeclarationForProperties(generator, properties);
       generator.print(';');
@@ -120,9 +125,9 @@ export function classDeclarationForOperation(
     generator,
     {
       structName: "Data",
-      namespace: namespaceAccumulator,
       fields
-    }
+    },
+    namespaceAccumulator
   );
 }
 
@@ -134,7 +139,7 @@ export function classImplementationForOperation(
     variables,
     fields,
     fragmentsReferenced,
-    source,
+    source
   },
   closure
 ) {
@@ -154,12 +159,15 @@ export function classImplementationForOperation(
       throw new GraphQLError(`Unsupported operation type "${operationType}"`);
   }
 
+  let namespace = className + 'Response';
   classImplementation(generator, {
     className,
     superClass: "NSObject",
     modifiers: [],
-    adoptedProtocols: [protocol]
-  }, () => {
+    adoptedProtocols: [protocol],
+  },
+  namespace,
+  () => {
     if (variables && variables.length > 0) {
       const properties = propertiesFromFields(generator.context, variables);
       generator.printNewlineIfNeeded();
@@ -207,7 +215,7 @@ export function initializerImplementationForProperties(generator, properties) {
         });
       });
       generator.printOnNewline('}');
-      generator.printOnNewline('return self');
+      generator.printOnNewline('return self;');
     });
   });
 }
@@ -261,8 +269,7 @@ export function structDeclarationForFragment(
     possibleTypes: possibleTypesForType(generator.context, typeCondition),
     fields,
     fragmentSpreads,
-    inlineFragments,
-    namespace
+    inlineFragments
   }, () => {
     if (source) {
       generator.printOnNewline('public static let fragmentDefinition =');
@@ -277,14 +284,14 @@ export function structDeclarationForSelectionSet(
   generator,
   {
     structName,
-    adoptedProtocols = ['GraphQLMapDecodable'],
+    adoptedProtocols = [],
     parentType,
     possibleTypes,
     fields,
     fragmentSpreads,
     inlineFragments,
-    namespace,
   },
+  namespace,
   beforeClosure
 ) {
   const properties = fields && propertiesFromFields(generator.context, fields, namespace);
@@ -293,8 +300,8 @@ export function structDeclarationForSelectionSet(
     {
       structName,
       adoptedProtocols,
-      namespace
     },
+    namespace,
     () => {
       if (beforeClosure) {
         beforeClosure();
@@ -318,7 +325,8 @@ export function structDeclarationForSelectionSet(
         // }
       }
 
-      propertyDeclarations(generator, properties);
+      propertyDeclarations(generator, properties, namespace);
+
       generator.printNewlineIfNeeded();
       generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(NSDictionary *)dictionary;');
       generator.printNewlineIfNeeded();
@@ -328,8 +336,8 @@ export function structDeclarationForSelectionSet(
     {
       structName,
       adoptedProtocols,
-      namespace
     },
+    namespace,
     () => {
       const fragmentProperties = fragmentSpreads && fragmentSpreads.map(fragmentName => {
         const fragment = generator.context.fragments[fragmentName];
@@ -369,7 +377,7 @@ export function structDeclarationForSelectionSet(
           }
 
           if (properties) {
-            properties.forEach(property => initializationForProperty(generator, property));
+            initializationsForProperties(generator, properties, namespace);
           }
 
           if (fragmentProperties && fragmentProperties.length > 0) {
@@ -404,6 +412,7 @@ export function structDeclarationForSelectionSet(
             {
               structName: 'Fragments'
             },
+            namespace,
             () => {
               fragmentProperties.forEach(({ propertyName, typeName, isProperSuperType }) => {
                 if (!isProperSuperType) {
@@ -426,12 +435,12 @@ export function structDeclarationForSelectionSet(
                 adoptedProtocols: ['GraphQLConditionalFragment'],
                 fields: property.fields,
                 fragmentSpreads: property.fragmentSpreads,
-                namespace
-              }
+              },
+              namespace
             );
           });
         }
-        generator.printOnNewline('return self');
+        generator.printOnNewline('return self;');
         });
         generator.printNewlineIfNeeded();
   });
@@ -446,22 +455,19 @@ export function structDeclarationForSelectionSet(
           fields: property.fields,
           fragmentSpreads: property.fragmentSpreads,
           inlineFragments: property.inlineFragments,
-          namespace
-        }
+        },
+        namespace
       );
     });
   }
 }
 
-export function initializationForProperty(generator, { propertyName, fieldName, fieldType }) {
-  const isOptional = !(fieldType instanceof GraphQLNonNull || fieldType.ofType instanceof GraphQLNonNull);
-  const isList = fieldType instanceof GraphQLList || fieldType.ofType instanceof GraphQLList;
+export function initializationsForProperties(generator, properties, namespace) {
+  properties.forEach(property => initializationForProperty(generator, property, namespace));
+}
 
-  const methodName = isOptional ? (isList ? 'optionalList' : 'optionalValue') : (isList ? 'list' : 'value');
-
-  const args = [`forKey: "${fieldName}"`];
-
-  generator.printOnNewline(`${propertyName} = try map.${methodName}(${ join(args, ', ') })`);
+export function initializationForProperty(generator, property, namespace) {
+  initializeProperty(generator, property, namespace);
 }
 
 export function propertiesFromFields(context, fields, namespace) {
@@ -479,7 +485,7 @@ export function propertyFromField(context, field, namespace) {
 
   if (isCompositeType(namedType)) {
     const bareTypeName = pascalCase(Inflector.singularize(propertyName));
-    const typeName = typeNameFromGraphQLType(context, fieldType, bareTypeName, namespace);
+    const typeName = typeNameFromGraphQLType(context, fieldType, namespace);
     return { ...property, typeName, bareTypeName, fields: field.fields, isComposite: true, fragmentSpreads, inlineFragments };
   } else {
     const typeName = typeNameFromGraphQLType(context, fieldType, namespace);
@@ -531,7 +537,7 @@ function structDeclarationForInputObjectType(generator, type) {
   const adoptedProtocols = ['JSONEncodable'];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
-  structDeclaration(generator, { structName, description, adoptedProtocols }, () => {
+  structDeclaration(generator, { structName, description, adoptedProtocols }, namespace, () => {
     propertyDeclarations(generator, properties);
     generator.printNewline();
     mappedProperty(generator, { propertyName: 'jsonValue', propertyType: 'JSONValue' }, properties);

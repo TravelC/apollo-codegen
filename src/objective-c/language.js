@@ -16,11 +16,14 @@ import {
   GraphQLObjectType
 } from 'graphql';
 
+import { camelCase, pascalCase } from 'change-case';
+import Inflector from 'inflected';
+
 import {
   typeNameFromGraphQLType
 } from './types';
 
-export function classDeclaration(generator, { className, modifiers, superClass, adoptedProtocols = [], properties, namespace = '' }, closure) {
+export function classDeclaration(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, namespace = '', closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
   generator.print(wrap('', join(modifiers, ' '), ' '));
@@ -30,7 +33,7 @@ export function classDeclaration(generator, { className, modifiers, superClass, 
   generator.printOnNewline(`@end`);
 }
 
-export function classImplementation(generator, { className, modifiers, superClass, adoptedProtocols = [], properties, namespace = '' }, closure) {
+export function classImplementation(generator, { className, modifiers, superClass, adoptedProtocols = [], properties },  namespace = '', closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
   generator.print(wrap('', join(modifiers, ' '), ' '));
@@ -40,24 +43,32 @@ export function classImplementation(generator, { className, modifiers, superClas
   generator.printOnNewline(`@end`);
 }
 
-export function structDeclaration(generator, { structName, description, adoptedProtocols = [], namespace = '' }, closure) {
+export function structDeclaration(generator, { structName, description, adoptedProtocols = []}, namespace = '', closure) {
   generator.printOnNewline(description);
   classDeclaration(generator, {
     className: structName,
     superClass: "NSObject",
     adoptedProtocols: adoptedProtocols,
-    namespace
-  }, closure)
+  }, namespace, closure)
 }
 
-export function structImplementation(generator, { structName, description, adoptedProtocols = [], namespace = '' }, closure) {
+
+export function structDeclaration(generator, { structName, description, adoptedProtocols = []}, namespace = '', closure) {
+  generator.printOnNewline(description);
+  classDeclaration(generator, {
+    className: structName,
+    superClass: "NSObject",
+    adoptedProtocols: adoptedProtocols,
+  }, namespace, closure)
+}
+
+export function structImplementation(generator, { structName, description, adoptedProtocols = [] }, namespace = '', closure) {
   generator.printOnNewline(description);
   classImplementation(generator, {
     className: structName,
     superClass: "NSObject",
     adoptedProtocols: adoptedProtocols,
-    namespace
-  }, closure)
+  }, namespace, closure)
 }
 
 const builtInRetainMap = {
@@ -92,17 +103,18 @@ function nullabilityWithFieldType(type) {
   return type instanceof GraphQLNonNull ? 'nonnull' : 'nullable';
 }
 
-export function propertyDeclaration(generator, { propertyName, typeName, description, fieldType}) {
+export function propertyDeclaration(generator, { propertyName, description, fieldType}, namespace) {
   const nullabilitySpecifier = nullabilityWithFieldType(fieldType);
-  const nullabilityComponent = nullabilitySpecifier.length > 0 ?  ' '+ nullabilitySpecifier + ',' : '';
+  const nullabilityComponent = nullabilitySpecifier.length > 0 ? (' ' + nullabilitySpecifier + ',') : '';
+  const typeName = typeNameFromGraphQLType(generator.context, fieldType, pascalCase(Inflector.singularize(propertyName)), namespace);
 
   generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${typeName}${propertyName};`);
   generator.print(description && ` // ${description}`);
 }
 
-export function propertyDeclarations(generator, properties) {
+export function propertyDeclarations(generator, properties, namespace) {
   if (!properties) return;
-  properties.forEach(property => propertyDeclaration(generator, property));
+  properties.forEach(property => propertyDeclaration(generator, property, namespace));
 }
 
 export function protocolDeclaration(generator, { protocolName, adoptedProtocols, properties }, closure) {

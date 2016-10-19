@@ -28,6 +28,10 @@ const builtInScalarMap = {
   [GraphQLID.name]: 'GraphQLID',
 }
 
+export function objectTypeNameWithGraphQLType(typeName, bareTypeName, namespace = '') {
+  return namespace + (bareTypeName || typeName);
+}
+
 export function typeNameFromGraphQLType(context, type, bareTypeName, namespace = '') {
   if (type instanceof GraphQLNonNull) {
     return typeNameFromGraphQLType(context, type.ofType, bareTypeName, namespace)
@@ -41,7 +45,7 @@ export function typeNameFromGraphQLType(context, type, bareTypeName, namespace =
   } else if (type instanceof GraphQLEnumType) {
     typeName = type.name + ' ';
   } else {
-    typeName = namespace + (bareTypeName || type.name) + ' *';
+    typeName = objectTypeNameWithGraphQLType(type.name, bareTypeName, namespace) + ' *';
   }
 
   return typeName;
