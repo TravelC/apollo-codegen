@@ -61,7 +61,7 @@ export function generateObjCSource(context) {
     classDeclarationForOperation(generator, operation);
     classImplementationForOperation(generator, operation, () =>{
       context.typesUsed.forEach(type => {
-        typeImplemenationForGraphQLType(generator, type);
+        typeImplementionForGraphQLType(generator, type);
       });
     });
   });
@@ -166,7 +166,7 @@ export function classImplementationForOperation(
     modifiers: [],
     adoptedProtocols: [protocol],
   },
-  namespace,
+  '',
   () => {
     if (variables && variables.length > 0) {
       const properties = propertiesFromFields(generator.context, variables);
@@ -208,7 +208,7 @@ export function initializerImplementationForProperties(generator, properties) {
   initializerDeclarationForProperties(generator, properties);
   generator.withinBlock(() => {
     generator.withIndent(() => {
-      generator.printOnNewline('if (self = super init]) {');
+      generator.printOnNewline('if (self = [super init]) {');
       generator.withIndent(() => {
         properties.forEach(({ propertyName }) => {
           generator.printOnNewline(`_${propertyName} = ${propertyName};`);
@@ -243,7 +243,7 @@ export function stringValueForProperty(fieldName, fieldType) {
   if (fieldType instanceof GraphQLEnumType) {
     return `[[self class] ${enumStringMappingFunctionNameForType(fieldType)}]`
   } else if (fieldType === GraphQLString) {
-    return fieldName;
+    return `[_${camelCase(fieldName)} copy]`
   } else {
     return `[_${camelCase(fieldName)} stringValue]`
   }
@@ -261,7 +261,6 @@ export function structDeclarationForFragment(
   }
 ) {
   const structName = pascalCase(fragmentName);
-
   structDeclarationForSelectionSet(generator, {
     structName,
     adoptedProtocols: ['GraphQLNamedFragment'],
@@ -295,13 +294,31 @@ export function structDeclarationForSelectionSet(
   beforeClosure
 ) {
   const properties = fields && propertiesFromFields(generator.context, fields, namespace);
+  const superNamespace = namespace;
+  namespace += structName;
+  if (properties) {
+    properties.filter(property => property.isComposite).forEach(property => {
+      structDeclarationForSelectionSet(
+        generator,
+        {
+          structName: structNameForProperty(property),
+          parentType: getNamedType(property.fieldType),
+          fields: property.fields,
+          fragmentSpreads: property.fragmentSpreads,
+          inlineFragments: property.inlineFragments,
+        },
+        namespace
+      );
+    });
+  }
+
   structDeclaration(
     generator,
     {
       structName,
       adoptedProtocols,
     },
-    namespace,
+    superNamespace,
     () => {
       if (beforeClosure) {
         beforeClosure();
@@ -331,14 +348,16 @@ export function structDeclarationForSelectionSet(
       generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(NSDictionary *)dictionary;');
       generator.printNewlineIfNeeded();
   });
+
   structImplementation(
     generator,
     {
       structName,
       adoptedProtocols,
     },
-    namespace,
+    superNamespace,
     () => {
+
       const fragmentProperties = fragmentSpreads && fragmentSpreads.map(fragmentName => {
         const fragment = generator.context.fragments[fragmentName];
         if (!fragment) {
@@ -444,22 +463,6 @@ export function structDeclarationForSelectionSet(
         });
         generator.printNewlineIfNeeded();
   });
-
-  if (properties) {
-    properties.filter(property => property.isComposite).forEach(property => {
-      structDeclarationForSelectionSet(
-        generator,
-        {
-          structName: structNameForProperty(property),
-          parentType: getNamedType(property.fieldType),
-          fields: property.fields,
-          fragmentSpreads: property.fragmentSpreads,
-          inlineFragments: property.inlineFragments,
-        },
-        namespace
-      );
-    });
-  }
 }
 
 export function initializationsForProperties(generator, properties, namespace) {
@@ -544,7 +547,7 @@ function structDeclarationForInputObjectType(generator, type) {
   });
 }
 
-export function typeImplemenationForGraphQLType(generator, type) {
+export function typeImplementionForGraphQLType(generator, type) {
   if (type instanceof GraphQLEnumType) {
     enumerationImplementation(generator, type);
   }

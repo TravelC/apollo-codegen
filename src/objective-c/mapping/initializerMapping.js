@@ -71,13 +71,12 @@ export function valueForGraphQLType(
       fieldName,
     },
     namespace,
-    'obj')}})`
+    'obj')};})`
   } else if (fieldType instanceof GraphQLScalarType) {
     value = valueForScalar(fieldName, dictionaryAccessor);
   } else if (fieldType instanceof GraphQLEnumType) {
     value = fieldType.value;
   } else {
-    console.log("prop name:" + propertyName);
     const propertyName = pascalCase(Inflector.singularize(fieldName));
     value = `[[${objectTypeNameWithGraphQLType(propertyName, propertyName, namespace)} alloc] initWithDictionary:${dictionaryAccessor}]`;
   }
