@@ -45,9 +45,23 @@ import {
 
 import CodeGenerator from '../utilities/CodeGenerator';
 
-export function generateObjCSource(context) {
+export function generateObjCSource(context, outputPath) {
+  return [
+    {
+      output: generateObjCSourceHeader(context),
+      extension: '.h'
+    },
+    {
+      output: generateObjCSourceImplementation(context, outputPath.split("/").pop() + '.h'),
+      extension: '.m'
+    }
+  ];
+}
+
+function generateObjCSourceHeader(context) {
   const generator = new CodeGenerator(context);
 
+  // Implementation
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printNewline();
   generator.printOnNewline('#import <Foundation/Foundation.h>');
@@ -59,6 +73,30 @@ export function generateObjCSource(context) {
 
   Object.values(context.operations).forEach(operation => {
     classDeclarationForOperation(generator, operation);
+  });
+
+  Object.values(context.fragments).forEach(fragment => {
+    structDeclarationForFragment(generator, fragment);
+  });
+
+  return generator.output;
+}
+
+function generateObjCSourceImplementation(context, headerFile) {
+  const generator = new CodeGenerator(context);
+
+  // Implementation
+  generator.printOnNewline('//  This file was automatically generated and should not be edited.');
+  generator.printNewline();
+  headerFile
+  generator.printOnNewline(`#import "${headerFile}"`);
+
+  context.typesUsed.forEach(type => {
+    typeDeclarationForGraphQLType(generator, type);
+  });
+
+  Object.values(context.operations).forEach(operation => {
+    // classDeclarationForOperation(generator, operation);
     classImplementationForOperation(generator, operation, () =>{
       context.typesUsed.forEach(type => {
         typeImplementionForGraphQLType(generator, type);
@@ -102,6 +140,8 @@ export function classDeclarationForOperation(
   }
 
   let namespaceAccumulator = className + 'Response';
+
+  generator.printNewlineIfNeeded();
   classDeclaration(generator, {
     className:className,
     superClass: "NSObject",
@@ -195,12 +235,21 @@ export function classImplementationForOperation(
 
     generator.printOnNewline(closure());
   });
+
+  structImplementationForSelectionSet(
+    generator,
+    {
+      structName: "Data",
+      fields
+    },
+    namespace
+  );
 }
 
 export function initializerDeclarationForProperties(generator, properties) {
   generator.printOnNewline(`- (nonnull instancetype)initWith`);
   generator.print(join(properties.map(({ propertyName, fieldType }) =>
-    `${propertyName}:(${(fieldType instanceof GraphQLNonNull) ? 'nonnull ' : ''}${typeNameFromGraphQLType(generator.context, fieldType)})${propertyName}`
+    `${pascalCase(propertyName)}:(${(fieldType instanceof GraphQLNonNull) ? 'nonnull ' : ''}${typeNameFromGraphQLType(generator.context, fieldType)})${propertyName}`
   ), ' '));
 }
 
@@ -279,7 +328,7 @@ export function structDeclarationForFragment(
   });
 }
 
-export function structDeclarationForSelectionSet(
+export function structImplementationForSelectionSet(
   generator,
   {
     structName,
@@ -298,7 +347,7 @@ export function structDeclarationForSelectionSet(
   namespace += structName;
   if (properties) {
     properties.filter(property => property.isComposite).forEach(property => {
-      structDeclarationForSelectionSet(
+      structImplementationForSelectionSet(
         generator,
         {
           structName: structNameForProperty(property),
@@ -311,43 +360,6 @@ export function structDeclarationForSelectionSet(
       );
     });
   }
-
-  structDeclaration(
-    generator,
-    {
-      structName,
-      adoptedProtocols,
-    },
-    superNamespace,
-    () => {
-      if (beforeClosure) {
-        beforeClosure();
-      }
-
-      if (possibleTypes) {
-        generator.printNewlineIfNeeded();
-        generator.printOnNewline('public static let possibleTypes = [');
-        generator.print(join(possibleTypes.map(type => `"${String(type)}"`), ', '));
-        generator.print(']');
-      }
-
-      generator.printNewlineIfNeeded();
-
-      if (parentType) {
-        propertyDeclaration(generator, { propertyName: '__typename', typeName: 'NSString *', fieldType: GraphQLString });
-        // if (isAbstractType(parentType)) {
-        //   generator.print(`: String`);
-        // } else {
-        //   generator.print(` = "${String(parentType)}"`);
-        // }
-      }
-
-      propertyDeclarations(generator, properties, namespace);
-
-      generator.printNewlineIfNeeded();
-      generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(NSDictionary *)dictionary;');
-      generator.printNewlineIfNeeded();
-  });
 
   structImplementation(
     generator,
@@ -462,6 +474,77 @@ export function structDeclarationForSelectionSet(
         generator.printOnNewline('return self;');
         });
         generator.printNewlineIfNeeded();
+    });
+}
+
+export function structDeclarationForSelectionSet(
+  generator,
+  {
+    structName,
+    adoptedProtocols = [],
+    parentType,
+    possibleTypes,
+    fields,
+    fragmentSpreads,
+    inlineFragments,
+  },
+  namespace,
+  beforeClosure
+) {
+  const properties = fields && propertiesFromFields(generator.context, fields, namespace);
+  const superNamespace = namespace;
+  namespace += structName;
+  if (properties) {
+    properties.filter(property => property.isComposite).forEach(property => {
+      structDeclarationForSelectionSet(
+        generator,
+        {
+          structName: structNameForProperty(property),
+          parentType: getNamedType(property.fieldType),
+          fields: property.fields,
+          fragmentSpreads: property.fragmentSpreads,
+          inlineFragments: property.inlineFragments,
+        },
+        namespace
+      );
+    });
+  }
+
+  structDeclaration(
+    generator,
+    {
+      structName,
+      adoptedProtocols,
+    },
+    superNamespace,
+    () => {
+      if (beforeClosure) {
+        beforeClosure();
+      }
+
+      if (possibleTypes) {
+        generator.printNewlineIfNeeded();
+        generator.printOnNewline('public static let possibleTypes = [');
+        generator.print(join(possibleTypes.map(type => `"${String(type)}"`), ', '));
+        generator.print(']');
+      }
+
+      generator.printNewlineIfNeeded();
+
+      if (parentType) {
+        propertyDeclaration(generator, { propertyName: '__typename', typeName: 'NSString *', fieldType: GraphQLString });
+        // if (isAbstractType(parentType)) {
+        //   generator.print(`: String`);
+        // } else {
+        //   generator.print(` = "${String(parentType)}"`);
+        // }
+      }
+
+      propertyDeclarations(generator, properties, namespace);
+
+      generator.printNewlineIfNeeded();
+      generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(NSDictionary *)dictionary;');
+      generator.printNewlineIfNeeded();
   });
 }
 
@@ -540,7 +623,7 @@ function structDeclarationForInputObjectType(generator, type) {
   const adoptedProtocols = ['JSONEncodable'];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
-  structDeclaration(generator, { structName, description, adoptedProtocols }, namespace, () => {
+  structDeclaration(generator, { structName, description, adoptedProtocols }, '', () => {
     propertyDeclarations(generator, properties);
     generator.printNewline();
     mappedProperty(generator, { propertyName: 'jsonValue', propertyType: 'JSONValue' }, properties);

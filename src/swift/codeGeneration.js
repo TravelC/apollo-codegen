@@ -56,7 +56,12 @@ export function generateSwiftSource(context) {
     structDeclarationForFragment(generator, fragment);
   });
 
-  return generator.output;
+  return [
+      {
+        output: generator.output,
+        extension: '.swift'
+      }
+  ];
 }
 
 export function classDeclarationForOperation(

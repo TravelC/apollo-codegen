@@ -17,21 +17,23 @@ export default function generate(inputPaths, schemaPath, outputPath, target, opt
   const context = compileToIR(schema, document);
   Object.assign(context, options);
 
-  let output;
+  let outputs;
   switch (target) {
     case 'json':
-      output = generateIR(context);
+      outputs = [generateIR(context)];
       break;
     case 'objc':
-      output = generateObjCSource(context);
+      outputs = generateObjCSource(context, outputPath);
       break;
     default:
-      output = generateSwiftSource(context);
+      outputs = generateSwiftSource(context);
       break;
   }
 
   if (outputPath) {
-    fs.writeFileSync(outputPath, output);
+    outputs.forEach(output => {
+      fs.writeFileSync(outputPath + output.extension, output.output);
+    })
   } else {
     console.log(output);
   }
