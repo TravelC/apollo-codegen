@@ -139,9 +139,9 @@ export function classDeclarationForOperation(
       throw new GraphQLError(`Unsupported operation type "${operationType}"`);
   }
 
-  let namespaceAccumulator = className + 'Response';
+  let namespace = className + 'Response';
 
-  generator.printNewlineIfNeeded();
+  generator.printNewlineIfNeeded()
   classDeclaration(generator, {
     className:className,
     superClass: "NSObject",
@@ -153,9 +153,9 @@ export function classDeclarationForOperation(
     if (variables && variables.length > 0) {
       const properties = propertiesFromFields(generator.context, variables);
       generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, properties, namespaceAccumulator);
-      generator.printNewlineIfNeeded();
       initializerDeclarationForProperties(generator, properties);
+      generator.printNewlineIfNeeded();
+      propertyDeclarations(generator, properties);
       generator.print(';');
       generator.printNewlineIfNeeded();
     }
@@ -167,7 +167,7 @@ export function classDeclarationForOperation(
       structName: "Data",
       fields
     },
-    namespaceAccumulator
+    namespace
   );
 }
 
