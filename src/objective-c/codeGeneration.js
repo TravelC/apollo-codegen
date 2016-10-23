@@ -92,7 +92,7 @@ function generateObjCSourceImplementation(context, headerFile) {
   generator.printOnNewline(`#import "${headerFile}"`);
 
   context.typesUsed.forEach(type => {
-    typeDeclarationForGraphQLType(generator, type);
+    typeImplementionForGraphQLType(generator, type);
   });
 
   Object.values(context.operations).forEach(operation => {
@@ -248,9 +248,17 @@ export function classImplementationForOperation(
 
 export function initializerDeclarationForProperties(generator, properties) {
   generator.printOnNewline(`- (nonnull instancetype)initWith`);
-  generator.print(join(properties.map(({ propertyName, fieldType }) =>
-    `${pascalCase(propertyName)}:(${(fieldType instanceof GraphQLNonNull) ? 'nonnull ' : ''}${typeNameFromGraphQLType(generator.context, fieldType)})${propertyName}`
-  ), ' '));
+  generator.print(
+    join(
+      properties.map(({ propertyName, fieldType }, index) => {
+        const fieldName = index == 0 ? pascalCase(propertyName) : camelCase(propertyName);
+        const fieldNullibility = (fieldType instanceof GraphQLNonNull) ? 'nonnull ' : '';
+        const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType);
+        return `${fieldName}:(${fieldNullibility}${fieldTypeName})${propertyName}`
+      })
+      , ' '
+    )
+  );
 }
 
 export function initializerImplementationForProperties(generator, properties) {
@@ -624,19 +632,33 @@ function structDeclarationForInputObjectType(generator, type) {
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
   structDeclaration(generator, { structName, description, adoptedProtocols }, '', () => {
-    propertyDeclarations(generator, properties);
+    // generator.printOnNewline('- (nullable NSDictionary)dictionaryValue;');
+    initializerDeclarationForProperties(generator, properties);
     generator.printNewline();
-    mappedProperty(generator, { propertyName: 'jsonValue', propertyType: 'JSONValue' }, properties);
+    propertyDeclarations(generator, properties);
   });
 }
 
 export function typeImplementionForGraphQLType(generator, type) {
   if (type instanceof GraphQLEnumType) {
     enumerationImplementation(generator, type);
+  } else if (type instanceof GraphQLInputObjectType) {
+    structImplementationForInputObjectType(generator, type);
   }
-  // else if (type instanceof GraphQLInputObjectType) {
-  //   structImplementationForInputObjectType(generator, type);
-  // }
+}
+
+function structImplementationForInputObjectType(generator, type) {
+  const { name: structName, description } = type;
+  const adoptedProtocols = ['JSONEncodable'];
+  const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
+
+  structImplementation(generator, { structName, description, adoptedProtocols }, '', () => {
+    generator.printNewlineIfNeeded();
+    initializerImplementationForProperties(generator, properties);
+    generator.printNewline();
+    mappedProperty(generator, { propertyName: 'jsonValue', propertyType: 'NSDictionary *' }, properties);
+    generator.printNewlineIfNeeded();
+  });
 }
 
 function enumerationImplementation(generator, type) {
