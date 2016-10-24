@@ -153,7 +153,7 @@ export function classDeclarationForOperation(
     if (variables && variables.length > 0) {
       const properties = propertiesFromFields(generator.context, variables);
       generator.printNewlineIfNeeded();
-      initializerDeclarationForProperties(generator, properties);
+      initializerDeclarationForProperties(generator, properties, namespace);
       generator.printNewlineIfNeeded();
       propertyDeclarations(generator, properties, namespace);
       generator.printNewlineIfNeeded();
@@ -245,14 +245,14 @@ export function classImplementationForOperation(
   );
 }
 
-export function initializerDeclarationForProperties(generator, properties) {
+export function initializerDeclarationForProperties(generator, properties, namespace = '') {
   generator.printOnNewline(`- (nonnull instancetype)initWith`);
   generator.print(
     join(
       properties.map(({ propertyName, fieldType }, index) => {
         const fieldName = index == 0 ? pascalCase(propertyName) : camelCase(propertyName);
         const fieldNullibility = (fieldType instanceof GraphQLNonNull) ? 'nonnull ' : 'nullable ';
-        const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType, pascalCase(Inflector.singularize(propertyName)));
+        const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType, namespace);
 
         return `${fieldName}:(${fieldNullibility}${fieldTypeName})${propertyName}`
       })
@@ -589,7 +589,7 @@ export function propertyFromField(context, field, namespace) {
 }
 
 export function structNameForProperty(property) {
-  return pascalCase(Inflector.singularize(property.fieldName));
+  return pascalCase(Inflector.singularize(property.propertyName));
 }
 
 export function typeNameForFragmentName(fragmentName) {
@@ -634,9 +634,11 @@ function structDeclarationForInputObjectType(generator, type) {
 
   structDeclaration(generator, { structName, description, adoptedProtocols }, '', () => {
     // generator.printOnNewline('- (nullable NSDictionary)dictionaryValue;');
+    generator.printNewline();
     initializerDeclarationForProperties(generator, properties);
     generator.printNewline();
     propertyDeclarations(generator, properties);
+    generator.printNewline();
   });
 }
 

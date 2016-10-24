@@ -96,12 +96,10 @@ function nullabilityWithFieldType(type) {
   return type instanceof GraphQLNonNull ? 'nonnull' : 'nullable';
 }
 
-export function propertyDeclaration(generator, { propertyName, description, fieldType}, namespace) {
+export function propertyDeclaration(generator, { propertyName, description, fieldType}, namespace = '') {
   const nullabilitySpecifier = nullabilityWithFieldType(fieldType);
   const nullabilityComponent = nullabilitySpecifier.length > 0 ? (' ' + nullabilitySpecifier + ',') : '';
-  // const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType, pascalCase(Inflector.singularize(propertyName)), namespace);
-
-  const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType);
+  const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType, namespace);
 
   generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${fieldTypeName}${propertyName};`);
   generator.print(description && ` // ${description}`);

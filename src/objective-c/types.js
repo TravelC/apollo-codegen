@@ -17,7 +17,8 @@ import {
   GraphQLNonNull,
   GraphQLScalarType,
   GraphQLEnumType,
-  GraphQLObjectType
+  GraphQLObjectType,
+  GraphQLInputObjectType
 } from 'graphql';
 
 const builtInScalarMap = {
@@ -42,6 +43,8 @@ export function typeNameFromGraphQLType(context, type, bareTypeName, namespace =
     typeName = 'NSArray<' + typeNameFromGraphQLType(context, type.ofType, bareTypeName, namespace) + '> *';
   } else if (type instanceof GraphQLScalarType) {
     typeName = builtInScalarMap[type.name] || (context.passthroughCustomScalars ? type.name: GraphQLString);
+  } else if (type instanceof GraphQLInputObjectType) {
+    typeName = type.name + ' *';
   } else if (type instanceof GraphQLEnumType) {
     typeName = type.name + ' ';
   } else {
