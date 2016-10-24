@@ -88,7 +88,6 @@ function generateObjCSourceImplementation(context, headerFile) {
   // Implementation
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printNewline();
-  headerFile
   generator.printOnNewline(`#import "${headerFile}"`);
 
   context.typesUsed.forEach(type => {
@@ -97,11 +96,7 @@ function generateObjCSourceImplementation(context, headerFile) {
 
   Object.values(context.operations).forEach(operation => {
     // classDeclarationForOperation(generator, operation);
-    classImplementationForOperation(generator, operation, () =>{
-      context.typesUsed.forEach(type => {
-        typeImplementionForGraphQLType(generator, type);
-      });
-    });
+    classImplementationForOperation(generator, operation);
   });
 
   Object.values(context.fragments).forEach(fragment => {
@@ -180,7 +175,6 @@ export function classImplementationForOperation(
     fragmentsReferenced,
     source
   },
-  closure
 ) {
   let className;
   let protocol;
@@ -231,8 +225,6 @@ export function classImplementationForOperation(
         generator.print(`.appending(${typeNameForFragmentName(fragment)}.fragmentDefinition)`)
       });
     }
-
-    generator.printOnNewline(closure());
   });
 
   structImplementationForSelectionSet(
@@ -300,6 +292,8 @@ export function stringValueForProperty(fieldName, fieldType) {
 
   if (fieldType instanceof GraphQLEnumType) {
     return `[[self class] ${enumStringMappingFunctionNameForType(fieldType)}]`
+  } else if (fieldType instanceof GraphQLInputObjectType) {
+    return `[_${camelCase(fieldName)} jsonValue]`
   } else if (fieldType === GraphQLString) {
     return `[_${camelCase(fieldName)} copy]`
   } else {
@@ -348,8 +342,7 @@ export function structImplementationForSelectionSet(
     fragmentSpreads,
     inlineFragments,
   },
-  namespace,
-  beforeClosure
+  namespace
 ) {
   const properties = fields && propertiesFromFields(generator.context, fields, namespace);
   const superNamespace = namespace;
@@ -497,8 +490,7 @@ export function structDeclarationForSelectionSet(
     fragmentSpreads,
     inlineFragments,
   },
-  namespace,
-  beforeClosure
+  namespace
 ) {
   const properties = fields && propertiesFromFields(generator.context, fields, namespace);
   const superNamespace = namespace;
@@ -527,10 +519,6 @@ export function structDeclarationForSelectionSet(
     },
     superNamespace,
     () => {
-      if (beforeClosure) {
-        beforeClosure();
-      }
-
       if (possibleTypes) {
         generator.printNewlineIfNeeded();
         generator.printOnNewline('public static let possibleTypes = [');

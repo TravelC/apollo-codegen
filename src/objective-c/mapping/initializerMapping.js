@@ -68,7 +68,7 @@ export function valueForGraphQLType(
     value = `${dictionaryAccessor}.map(^id(NSDictionary *obj) { return ${valueForGraphQLType(context,
       {
       fieldType: fieldType.ofType,
-      fieldName,
+      fieldName: '',
     },
     namespace,
     'obj')};})`
