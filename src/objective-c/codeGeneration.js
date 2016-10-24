@@ -65,7 +65,7 @@ function generateObjCSourceHeader(context) {
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printNewline();
   generator.printOnNewline('#import <Foundation/Foundation.h>');
-  generator.printOnNewline('#import <Apollo/Apollo.h>');
+  generator.printOnNewline('#import <Apollo/Apollo-swift.h>');
 
   context.typesUsed.forEach(type => {
     typeDeclarationForGraphQLType(generator, type);
@@ -139,7 +139,7 @@ export function classDeclarationForOperation(
       throw new GraphQLError(`Unsupported operation type "${operationType}"`);
   }
 
-  let namespace = className + 'Response';
+  let namespace = className;
 
   generator.printNewlineIfNeeded()
   classDeclaration(generator, {
@@ -155,8 +155,7 @@ export function classDeclarationForOperation(
       generator.printNewlineIfNeeded();
       initializerDeclarationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, properties);
-      generator.print(';');
+      propertyDeclarations(generator, properties, namespace);
       generator.printNewlineIfNeeded();
     }
   });
@@ -167,7 +166,7 @@ export function classDeclarationForOperation(
       structName: "Data",
       fields
     },
-    namespace
+    namespace + 'Response'
   );
 }
 
@@ -252,13 +251,15 @@ export function initializerDeclarationForProperties(generator, properties) {
     join(
       properties.map(({ propertyName, fieldType }, index) => {
         const fieldName = index == 0 ? pascalCase(propertyName) : camelCase(propertyName);
-        const fieldNullibility = (fieldType instanceof GraphQLNonNull) ? 'nonnull ' : '';
-        const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType);
+        const fieldNullibility = (fieldType instanceof GraphQLNonNull) ? 'nonnull ' : 'nullable ';
+        const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType, pascalCase(Inflector.singularize(propertyName)));
+
         return `${fieldName}:(${fieldNullibility}${fieldTypeName})${propertyName}`
       })
       , ' '
     )
   );
+  generator.print(';');
 }
 
 export function initializerImplementationForProperties(generator, properties) {
@@ -407,7 +408,7 @@ export function structImplementationForSelectionSet(
       }
 
       generator.printNewlineIfNeeded();
-      generator.printOnNewline('- (nonnull instancetype) initWithDictionary:(NSDictionary *)dictionary');
+      generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(nonnull NSDictionary *)dictionary');
       generator.withinBlock(() => {
         generator.printOnNewline('if (self = [super init])');
         generator.withinBlock(() => {
@@ -551,7 +552,7 @@ export function structDeclarationForSelectionSet(
       propertyDeclarations(generator, properties, namespace);
 
       generator.printNewlineIfNeeded();
-      generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(NSDictionary *)dictionary;');
+      generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(nonnull NSDictionary *)dictionary;');
       generator.printNewlineIfNeeded();
   });
 }
