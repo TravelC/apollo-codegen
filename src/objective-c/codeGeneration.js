@@ -65,7 +65,7 @@ function generateObjCSourceHeader(context) {
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printNewline();
   generator.printOnNewline('#import <Foundation/Foundation.h>');
-  generator.printOnNewline('#import <Apollo/Apollo-swift.h>');
+  // generator.printOnNewline('#import <Apollo/Apollo-swift.h>');
 
   context.typesUsed.forEach(type => {
     typeDeclarationForGraphQLType(generator, type);
@@ -141,7 +141,7 @@ export function classDeclarationForOperation(
     className:className,
     superClass: "NSObject",
     modifiers: [],
-    adoptedProtocols: [protocol],
+    // adoptedProtocols: [protocol],
   },
   '',
   () => {
@@ -197,7 +197,7 @@ export function classImplementationForOperation(
     className,
     superClass: "NSObject",
     modifiers: [],
-    adoptedProtocols: [protocol],
+    // adoptedProtocols: [protocol],
   },
   '',
   () => {
@@ -276,8 +276,9 @@ export function mappedProperty(generator, { propertyName, propertyType }, proper
     generator.printOnNewline('return @{');
     generator.withIndent(() => {
       properties.map(({ fieldName, fieldType }) => {
+        const nullabilitySafeguard = fieldType instanceof GraphQLNonNull ? '' : ' ?: [NSNull null]';
         generator.printOnNewline(
-          `@"${fieldName}": ${stringValueForProperty(fieldName, fieldType)}, `
+          `@"${fieldName}": ${stringValueForProperty(fieldName, fieldType)}${nullabilitySafeguard}, `
         );
       })
     });
@@ -617,7 +618,8 @@ function enumerationDeclaration(generator, type) {
 
 function structDeclarationForInputObjectType(generator, type) {
   const { name: structName, description } = type;
-  const adoptedProtocols = ['JSONEncodable'];
+  // const adoptedProtocols = ['JSONEncodable'];
+  const adoptedProtocols = [];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
   structDeclaration(generator, { structName, description, adoptedProtocols }, '', () => {
@@ -640,7 +642,8 @@ export function typeImplementionForGraphQLType(generator, type) {
 
 function structImplementationForInputObjectType(generator, type) {
   const { name: structName, description } = type;
-  const adoptedProtocols = ['JSONEncodable'];
+  // const adoptedProtocols = ['JSONEncodable'];
+  const adoptedProtocols = [];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
   structImplementation(generator, { structName, description, adoptedProtocols }, '', () => {
