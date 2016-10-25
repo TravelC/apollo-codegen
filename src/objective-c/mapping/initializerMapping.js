@@ -48,7 +48,8 @@ export function valueForGraphQLType(
     fieldName,
   },
   namespace,
-  dictionaryName
+  dictionaryName,
+  dictionaryKey = fieldName
 ) {
   if (fieldType instanceof GraphQLNonNull) {
     return valueForGraphQLType(
@@ -62,7 +63,7 @@ export function valueForGraphQLType(
     )
   }
 
-  const dictionaryAccessor = dictionaryName + (fieldName.length ? `[@"${ fieldName }"]` : '');
+  const dictionaryAccessor = dictionaryName + (dictionaryKey.length ? `[@"${ dictionaryKey }"]` : '');
   if (fieldType instanceof GraphQLList) {
     const scopedDictionaryName = Inflector.singularize(fieldName);
     const subValue = valueForGraphQLType(
@@ -72,9 +73,10 @@ export function valueForGraphQLType(
         fieldName,
       },
       namespace,
-      scopedDictionaryName
+      scopedDictionaryName,
+      ''
     )
-    return `${dictionaryAccessor}.map(^id(NSDictionary *${scopedDictionaryName}) { return ${subValue};})`
+    return `[${dictionaryAccessor} map:(^id(NSDictionary *${scopedDictionaryName}) { return ${subValue};})];`
   } else if (fieldType instanceof GraphQLScalarType) {
     return valueForScalar(fieldName, dictionaryAccessor);
   } else if (fieldType instanceof GraphQLEnumType) {
