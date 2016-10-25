@@ -68,6 +68,8 @@ constructingBodyWithBlock:nil
       }];
 ```
 
+Still a ton of low hanging fruit here and am by no means close to finish on this yet so use at your own risk!
+
 ## Contributing
 
 [![Build status](https://travis-ci.org/apollostack/apollo-codegen.svg?branch=master)](https://travis-ci.org/apollostack/apollo-codegen)
