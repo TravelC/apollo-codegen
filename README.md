@@ -63,9 +63,7 @@ constructingBodyWithBlock:nil
           UpcomingUserEventsQueryResponseData *data = [[UpcomingUserEventsQueryResponseData alloc] initWithDictionary:responseObject[@"data"]];
           NSLog(@"%@", data.user.events.results.firstObject.toNode.title);
       }
-      failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
-
-      }];
+      failure:nil];
 ```
 
 Still a ton of low hanging fruit here and am by no means close to finish on this yet so use at your own risk!
