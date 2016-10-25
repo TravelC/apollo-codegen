@@ -62,24 +62,25 @@ export function valueForGraphQLType(
     )
   }
 
-  let value = '';
   const dictionaryAccessor = dictionaryName + (fieldName.length ? `[@"${ fieldName }"]` : '');
   if (fieldType instanceof GraphQLList) {
-    value = `${dictionaryAccessor}.map(^id(NSDictionary *obj) { return ${valueForGraphQLType(context,
+    const scopedDictionaryName = Inflector.singularize(fieldName);
+    const subValue = valueForGraphQLType(
+      context,
       {
-      fieldType: fieldType.ofType,
-      fieldName: '',
-    },
-    namespace,
-    'obj')};})`
+        fieldType: fieldType.ofType,
+        fieldName,
+      },
+      namespace,
+      scopedDictionaryName
+    )
+    return `${dictionaryAccessor}.map(^id(NSDictionary *${scopedDictionaryName}) { return ${subValue};})`
   } else if (fieldType instanceof GraphQLScalarType) {
-    value = valueForScalar(fieldName, dictionaryAccessor);
+    return valueForScalar(fieldName, dictionaryAccessor);
   } else if (fieldType instanceof GraphQLEnumType) {
-    value = fieldType.value;
+    return fieldType.value;
   } else {
     const propertyName = pascalCase(Inflector.singularize(fieldName));
-    value = `[[${objectTypeNameWithGraphQLType(propertyName, propertyName, namespace)} alloc] initWithDictionary:${dictionaryAccessor}]`;
+    return `[[${objectTypeNameWithGraphQLType(propertyName, propertyName, namespace)} alloc] initWithDictionary:${dictionaryAccessor}]`;
   }
-
-  return value;
 }
