@@ -25,8 +25,46 @@ You can use the `header` option to add additional HTTP headers to the request. F
 To generate Swift code from a set of query definitions in `.graphql` files:
 
 ```sh
-apollo-codegen generate **/*.graphql --schema schema.json --output API.swift
+apollo-codegen generate **/*.graphql --schema schema.json --output API --target swift
 ```
+
+
+To generate Objc code from a set of query definitions in `.graphql` files:
+
+```sh
+apollo-codegen generate **/*.graphql --schema schema.json --output API --target objc
+```
+
+
+Heres a really basic setup I made for the purposes of testing out objc target for now
+
+AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+UpcomingUserEventsQuery *query = [[UpcomingUserEventsQuery alloc] initWithAuthToken:@"<auth_token>"
+                                                                              query:nil
+                                                                               page:nil
+                                                                            perPage:nil];
+
+NSDictionary *operationDef = [query performSelector:@selector(operationDefinition)];
+NSDictionary *variables = [query performSelector:@selector(variables)];
+
+NSMutableDictionary *dict = [variables mutableCopy];
+NSArray *keysForNullValues = [dict allKeysForObject:[NSNull null]];
+[dict removeObjectsForKeys:keysForNullValues];
+
+[manager POST:@"http://localhost:3000/queries"
+   parameters:@{
+                @"query" : operationDef,
+                @"variables" : dict
+                }
+constructingBodyWithBlock:nil
+     progress:nil
+      success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+          UpcomingUserEventsQueryResponseData *data = [[UpcomingUserEventsQueryResponseData alloc] initWithDictionary:responseObject[@"data"]];
+          NSLog(@"%@", data.user.events.results.firstObject.toNode.title);
+      }
+      failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+
+      }];
 
 ## Contributing
 
