@@ -38,6 +38,7 @@ apollo-codegen generate **/*.graphql --schema schema.json --output API --target 
 
 Heres a really basic setup I made for the purposes of testing out objc target for now
 
+```objc
 AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
 UpcomingUserEventsQuery *query = [[UpcomingUserEventsQuery alloc] initWithAuthToken:@"<auth_token>"
                                                                               query:nil
@@ -65,6 +66,7 @@ constructingBodyWithBlock:nil
       failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
 
       }];
+```
 
 ## Contributing
 
