@@ -65,6 +65,9 @@ function generateObjCSourceHeader(context) {
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printNewline();
   generator.printOnNewline('#import <Foundation/Foundation.h>');
+  generator.printNewline();
+  generator.printOnNewline('#import <RNGraphQLNetworker/RNGraphQLDefinitions.h>');
+
   // generator.printOnNewline('#import <Apollo/Apollo-swift.h>');
 
   context.typesUsed.forEach(type => {
@@ -89,13 +92,14 @@ function generateObjCSourceImplementation(context, headerFile) {
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printNewline();
   generator.printOnNewline(`#import "${headerFile}"`);
+  generator.printNewline();
+  generator.printOnNewline('#import <RNFoundation/NSArray+Map.h>');
 
   context.typesUsed.forEach(type => {
     typeImplementionForGraphQLType(generator, type);
   });
 
   Object.values(context.operations).forEach(operation => {
-    // classDeclarationForOperation(generator, operation);
     classImplementationForOperation(generator, operation);
   });
 
@@ -105,6 +109,30 @@ function generateObjCSourceImplementation(context, headerFile) {
 
   return generator.output;
 }
+export function structDeclarationsForOperation(
+  generator,
+  {
+    operationName,
+    operationType,
+    variables,
+    fields,
+    fragmentsReferenced,
+    source
+  }
+) {
+
+  fields.forEach(field => {
+    console.log(field);
+  });
+  // structDeclarationForSelectionSet(
+  //   generator,
+  //   {
+  //     structName: "Data",
+  //     fields
+  //   }
+  // );
+}
+
 
 export function classDeclarationForOperation(
   generator,
@@ -141,7 +169,7 @@ export function classDeclarationForOperation(
     className:className,
     superClass: "NSObject",
     modifiers: [],
-    // adoptedProtocols: [protocol],
+    adoptedProtocols: [protocol],
   },
   '',
   () => {
@@ -154,15 +182,6 @@ export function classDeclarationForOperation(
       generator.printNewlineIfNeeded();
     }
   });
-
-  structDeclarationForSelectionSet(
-    generator,
-    {
-      structName: "Data",
-      fields
-    },
-    namespace + 'Response'
-  );
 }
 
 export function classImplementationForOperation(
@@ -193,11 +212,20 @@ export function classImplementationForOperation(
   }
 
   let namespace = className + 'Response';
+  structImplementationForSelectionSet(
+    generator,
+    {
+      structName: "Data",
+      fields
+    },
+    namespace
+  );
+
   classImplementation(generator, {
     className,
     superClass: "NSObject",
     modifiers: [],
-    // adoptedProtocols: [protocol],
+    adoptedProtocols: [protocol],
   },
   '',
   () => {
@@ -206,7 +234,7 @@ export function classImplementationForOperation(
       generator.printNewlineIfNeeded();
       initializerImplementationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
-      mappedProperty(generator, { propertyName: 'variables', propertyType: 'NSDictionary *' }, properties);
+      mappedProperty(generator, { propertyName: 'variables', propertyType: 'NSDictionary *', nullable: false }, properties);
       generator.printNewlineIfNeeded();
     }
 
@@ -217,6 +245,16 @@ export function classImplementationForOperation(
           multilineString(generator, source);
         })
       });
+
+      generator.printNewlineIfNeeded();
+      generator.printOnNewline(`- (nonnull NSString *)responseDataClassName`);
+      generator.withinBlock(() => {
+        generator.withIndent(() => {
+          const className = pascalCase(namespace + 'Data');
+          generator.printOnNewline(`return @"${className}";`);
+        });
+      });
+      generator.printNewlineIfNeeded();
     }
 
     if (fragmentsReferenced && fragmentsReferenced.length > 0) {
@@ -226,15 +264,6 @@ export function classImplementationForOperation(
       });
     }
   });
-
-  structImplementationForSelectionSet(
-    generator,
-    {
-      structName: "Data",
-      fields
-    },
-    namespace
-  );
 }
 
 export function initializerDeclarationForProperties(generator, properties, namespace = '') {
@@ -270,15 +299,16 @@ export function initializerImplementationForProperties(generator, properties) {
   });
 }
 
-export function mappedProperty(generator, { propertyName, propertyType }, properties) {
-  generator.printOnNewline(`- (nullable ${propertyType})${propertyName}`);
+export function mappedProperty(generator, { propertyName, propertyType, nullable = true }, properties) {
+  const nullabilityString = nullable ? 'nullable' : 'nonnull';
+  generator.printOnNewline(`- (${nullabilityString} ${propertyType})${propertyName}`);
   generator.withinBlock(() => {
     generator.printOnNewline('return @{');
     generator.withIndent(() => {
       properties.map(({ fieldName, fieldType }) => {
         const nullabilitySafeguard = fieldType instanceof GraphQLNonNull ? '' : ' ?: [NSNull null]';
         generator.printOnNewline(
-          `@"${fieldName}": ${stringValueForProperty(fieldName, fieldType)}${nullabilitySafeguard}, `
+          `@"${fieldName}": ${valueForProperty(fieldName, fieldType)}${nullabilitySafeguard}, `
         );
       })
     });
@@ -286,9 +316,9 @@ export function mappedProperty(generator, { propertyName, propertyType }, proper
   })
 }
 
-export function stringValueForProperty(fieldName, fieldType) {
+export function valueForProperty(fieldName, fieldType) {
   if (fieldType instanceof GraphQLNonNull) {
-    return stringValueForProperty(fieldName, fieldType.ofType);
+    return valueForProperty(fieldName, fieldType.ofType);
   }
 
   if (fieldType instanceof GraphQLEnumType) {
@@ -298,7 +328,7 @@ export function stringValueForProperty(fieldName, fieldType) {
   } else if (fieldType === GraphQLString) {
     return `[_${camelCase(fieldName)} copy]`
   } else {
-    return `[_${camelCase(fieldName)} stringValue]`
+    return `_${camelCase(fieldName)}`
   }
 }
 
