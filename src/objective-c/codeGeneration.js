@@ -10,7 +10,8 @@ import {
   GraphQLNonNull,
   GraphQLID,
   GraphQLInputObjectType,
-  GraphQLString
+  GraphQLString,
+  GraphQLObjectType
 } from 'graphql'
 
 import  { isTypeProperSuperTypeOf } from '../utilities/graphql'
@@ -35,6 +36,7 @@ import {
 import { escapedString, multilineString } from './strings';
 
 import {
+  baseTypeNameFromGraphQLType,
   typeNameFromGraphQLType,
 } from './types';
 
@@ -75,6 +77,10 @@ function generateObjCSourceHeader(context) {
   });
 
   Object.values(context.operations).forEach(operation => {
+    structDeclarationsForOperation(generator, operation);
+  });
+
+  Object.values(context.operations).forEach(operation => {
     classDeclarationForOperation(generator, operation);
   });
 
@@ -100,6 +106,10 @@ function generateObjCSourceImplementation(context, headerFile) {
   });
 
   Object.values(context.operations).forEach(operation => {
+    structImplementationForOperation(generator, operation);
+  });
+
+  Object.values(context.operations).forEach(operation => {
     classImplementationForOperation(generator, operation);
   });
 
@@ -109,6 +119,63 @@ function generateObjCSourceImplementation(context, headerFile) {
 
   return generator.output;
 }
+
+export function structImplementationForOperation(
+  generator,
+  {
+    operationName,
+    operationType,
+    variables,
+    fields,
+    fragmentsReferenced,
+    source
+  }
+) {
+  let className;
+  switch (operationType) {
+    case 'query':
+      className = `${pascalCase(operationName)}Query`;
+      break;
+    case 'mutation':
+      className = `${pascalCase(operationName)}Mutation`;
+      break;
+    default:
+      throw new GraphQLError(`Unsupported operation type "${operationType}"`);
+  }
+
+  structImplementationForSelectionSet(
+    generator,
+    {
+      structName: className + 'Data',
+      fields
+    }
+  );
+}
+
+function generateObjectPropertiesMapForFields(
+  fields,
+  mapAccumulator = {}
+) {
+  fields.forEach(({fields, type}) => {
+    console.log(type.name);
+  });
+}
+
+function objectPropertiesMapForType(
+  type,
+  mapAccumulator = {}
+) {
+  if (type instanceof GraphQLObjectType) {
+    if (mapAccumulator[type.name]) {
+
+    }
+  } else if (type instanceof GraphQLNonNull) {
+    generateObjectPropertiesMap(type.toType);
+  } else if (type instanceof GraphQLList) {
+    generateObjectPropertiesMap(type.toType);
+  }
+}
+
 export function structDeclarationsForOperation(
   generator,
   {
@@ -120,19 +187,40 @@ export function structDeclarationsForOperation(
     source
   }
 ) {
+  let className;
+  switch (operationType) {
+    case 'query':
+      className = `${pascalCase(operationName)}Query`;
+      break;
+    case 'mutation':
+      className = `${pascalCase(operationName)}Mutation`;
+      break;
+    default:
+      throw new GraphQLError(`Unsupported operation type "${operationType}"`);
+  }
 
-  fields.forEach(field => {
-    console.log(field);
-  });
-  // structDeclarationForSelectionSet(
-  //   generator,
-  //   {
-  //     structName: "Data",
-  //     fields
-  //   }
-  // );
+  structDeclarationForSelectionSet(
+    generator,
+    {
+      structName: className + 'Data',
+      fields
+    }
+  );
+
+  // var aggregateMap = {};
+  // const properties = fields && propertiesFromFields(generator.context, fields);
+  // properties.forEach(property => {
+  //   const propertyName = baseTypeNameFromGraphQLType(generator.context, property.fieldType);
+  //   aggregateMap[propertyName] = aggregateMap[propertyName] === undefined ? {} : aggregateMap[propertyName];
+  //
+  //   const subFields = property.fields;
+  //   const subProperties = subFields && propertiesFromFields(generator.context, subFields);
+  //   subProperties.forEach(subProperty => {
+  //     aggregateMap[propertyName][subProperty.fieldName] = subProperty;
+  //   });
+  // })
+  // console.log(aggregateMap['UserType']);
 }
-
 
 export function classDeclarationForOperation(
   generator,
@@ -145,7 +233,6 @@ export function classDeclarationForOperation(
     source
   }
 ) {
-
   let className;
   let protocol;
 
@@ -162,8 +249,6 @@ export function classDeclarationForOperation(
       throw new GraphQLError(`Unsupported operation type "${operationType}"`);
   }
 
-  let namespace = className;
-
   generator.printNewlineIfNeeded()
   classDeclaration(generator, {
     className:className,
@@ -171,14 +256,13 @@ export function classDeclarationForOperation(
     modifiers: [],
     adoptedProtocols: [protocol],
   },
-  '',
   () => {
     if (variables && variables.length > 0) {
       const properties = propertiesFromFields(generator.context, variables);
       generator.printNewlineIfNeeded();
-      initializerDeclarationForProperties(generator, properties, namespace);
+      initializerDeclarationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, properties, namespace);
+      propertyDeclarations(generator, properties);
       generator.printNewlineIfNeeded();
     }
   });
@@ -211,23 +295,12 @@ export function classImplementationForOperation(
       throw new GraphQLError(`Unsupported operation type "${operationType}"`);
   }
 
-  let namespace = className + 'Response';
-  structImplementationForSelectionSet(
-    generator,
-    {
-      structName: "Data",
-      fields
-    },
-    namespace
-  );
-
   classImplementation(generator, {
     className,
     superClass: "NSObject",
     modifiers: [],
     adoptedProtocols: [protocol],
   },
-  '',
   () => {
     if (variables && variables.length > 0) {
       const properties = propertiesFromFields(generator.context, variables);
@@ -250,8 +323,8 @@ export function classImplementationForOperation(
       generator.printOnNewline(`- (nonnull NSString *)responseDataClassName`);
       generator.withinBlock(() => {
         generator.withIndent(() => {
-          const className = pascalCase(namespace + 'Data');
-          generator.printOnNewline(`return @"${className}";`);
+          const responseDataClassName = className + 'Data';
+          generator.printOnNewline(`return @"${responseDataClassName}";`);
         });
       });
       generator.printNewlineIfNeeded();
@@ -266,16 +339,16 @@ export function classImplementationForOperation(
   });
 }
 
-export function initializerDeclarationForProperties(generator, properties, namespace = '') {
+export function initializerDeclarationForProperties(generator, properties = '') {
   generator.printOnNewline(`- (nonnull instancetype)initWith`);
   generator.print(
     join(
       properties.map(({ propertyName, fieldType }, index) => {
         const fieldName = index == 0 ? pascalCase(propertyName) : camelCase(propertyName);
         const fieldNullibility = (fieldType instanceof GraphQLNonNull) ? 'nonnull ' : 'nullable ';
-        const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType, namespace);
+        const fieldTypeName = baseTypeNameFromGraphQLType(generator.context, fieldType);
 
-        return `${fieldName}:(${fieldNullibility}${fieldTypeName})${propertyName}`
+        return `${fieldName}:(${fieldNullibility}${fieldTypeName} *)${propertyName}`
       })
       , ' '
     )
@@ -372,24 +445,20 @@ export function structImplementationForSelectionSet(
     fields,
     fragmentSpreads,
     inlineFragments,
-  },
-  namespace
+  }
 ) {
-  const properties = fields && propertiesFromFields(generator.context, fields, namespace);
-  const superNamespace = namespace;
-  namespace += structName;
+  const properties = fields && propertiesFromFields(generator.context, fields);
   if (properties) {
     properties.filter(property => property.isComposite).forEach(property => {
       structImplementationForSelectionSet(
         generator,
         {
-          structName: structNameForProperty(property),
+          structName: structNameForProperty(generator.context, property),
           parentType: getNamedType(property.fieldType),
           fields: property.fields,
           fragmentSpreads: property.fragmentSpreads,
           inlineFragments: property.inlineFragments,
-        },
-        namespace
+        }
       );
     });
   }
@@ -400,7 +469,6 @@ export function structImplementationForSelectionSet(
       structName,
       adoptedProtocols,
     },
-    superNamespace,
     () => {
 
       const fragmentProperties = fragmentSpreads && fragmentSpreads.map(fragmentName => {
@@ -423,7 +491,7 @@ export function structImplementationForSelectionSet(
 
       if (fragmentProperties && fragmentProperties.length > 0) {
         generator.printNewlineIfNeeded();
-        propertyDeclaration(generator, { propertyName: 'fragments', typeName: 'Fragments', namespace });
+        propertyDeclaration(generator, { propertyName: 'fragments', typeName: 'Fragments' });
       }
 
       if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
@@ -441,7 +509,7 @@ export function structImplementationForSelectionSet(
           }
 
           if (properties) {
-            initializationsForProperties(generator, properties, namespace);
+            initializationsForProperties(generator, properties);
           }
 
           if (fragmentProperties && fragmentProperties.length > 0) {
@@ -476,7 +544,6 @@ export function structImplementationForSelectionSet(
             {
               structName: 'Fragments'
             },
-            namespace,
             () => {
               fragmentProperties.forEach(({ propertyName, typeName, isProperSuperType }) => {
                 if (!isProperSuperType) {
@@ -499,8 +566,7 @@ export function structImplementationForSelectionSet(
                 adoptedProtocols: ['GraphQLConditionalFragment'],
                 fields: property.fields,
                 fragmentSpreads: property.fragmentSpreads,
-              },
-              namespace
+              }
             );
           });
         }
@@ -520,24 +586,20 @@ export function structDeclarationForSelectionSet(
     fields,
     fragmentSpreads,
     inlineFragments,
-  },
-  namespace
+  }
 ) {
-  const properties = fields && propertiesFromFields(generator.context, fields, namespace);
-  const superNamespace = namespace;
-  namespace += structName;
+  const properties = fields && propertiesFromFields(generator.context, fields);
   if (properties) {
     properties.filter(property => property.isComposite).forEach(property => {
       structDeclarationForSelectionSet(
         generator,
         {
-          structName: structNameForProperty(property),
+          structName: structNameForProperty(generator.context, property),
           parentType: getNamedType(property.fieldType),
           fields: property.fields,
           fragmentSpreads: property.fragmentSpreads,
           inlineFragments: property.inlineFragments,
-        },
-        namespace
+        }
       );
     });
   }
@@ -548,7 +610,6 @@ export function structDeclarationForSelectionSet(
       structName,
       adoptedProtocols,
     },
-    superNamespace,
     () => {
       if (possibleTypes) {
         generator.printNewlineIfNeeded();
@@ -568,7 +629,7 @@ export function structDeclarationForSelectionSet(
         // }
       }
 
-      propertyDeclarations(generator, properties, namespace);
+      propertyDeclarations(generator, properties);
 
       generator.printNewlineIfNeeded();
       generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(nonnull NSDictionary *)dictionary;');
@@ -576,19 +637,19 @@ export function structDeclarationForSelectionSet(
   });
 }
 
-export function initializationsForProperties(generator, properties, namespace) {
-  properties.forEach(property => initializationForProperty(generator, property, namespace));
+export function initializationsForProperties(generator, properties) {
+  properties.forEach(property => initializationForProperty(generator, property));
 }
 
-export function initializationForProperty(generator, property, namespace) {
-  initializeProperty(generator, property, namespace);
+export function initializationForProperty(generator, property) {
+  initializeProperty(generator, property);
 }
 
-export function propertiesFromFields(context, fields, namespace) {
-  return fields.map(field => propertyFromField(context, field, namespace));
+export function propertiesFromFields(context, fields) {
+  return fields.map(field => propertyFromField(context, field));
 }
 
-export function propertyFromField(context, field, namespace) {
+export function propertyFromField(context, field) {
   const { name: fieldName, type: fieldType, description, fragmentSpreads, inlineFragments } = field;
 
   const propertyName = camelCase(fieldName);
@@ -599,16 +660,16 @@ export function propertyFromField(context, field, namespace) {
 
   if (isCompositeType(namedType)) {
     const bareTypeName = pascalCase(Inflector.singularize(propertyName));
-    const typeName = typeNameFromGraphQLType(context, fieldType, namespace);
+    const typeName = typeNameFromGraphQLType(context, fieldType);
     return { ...property, typeName, bareTypeName, fields: field.fields, isComposite: true, fragmentSpreads, inlineFragments };
   } else {
-    const typeName = typeNameFromGraphQLType(context, fieldType, namespace);
+    const typeName = typeNameFromGraphQLType(context, fieldType);
     return { ...property, typeName, isComposite: false };
   }
 }
 
-export function structNameForProperty(property) {
-  return pascalCase(Inflector.singularize(property.propertyName));
+export function structNameForProperty(context, property) {
+  return baseTypeNameFromGraphQLType(context, property.fieldType);
 }
 
 export function typeNameForFragmentName(fragmentName) {
@@ -652,7 +713,7 @@ function structDeclarationForInputObjectType(generator, type) {
   const adoptedProtocols = [];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
-  structDeclaration(generator, { structName, description, adoptedProtocols }, '', () => {
+  structDeclaration(generator, { structName, description, adoptedProtocols }, () => {
     // generator.printOnNewline('- (nullable NSDictionary)dictionaryValue;');
     generator.printNewline();
     initializerDeclarationForProperties(generator, properties);
@@ -676,7 +737,7 @@ function structImplementationForInputObjectType(generator, type) {
   const adoptedProtocols = [];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
-  structImplementation(generator, { structName, description, adoptedProtocols }, '', () => {
+  structImplementation(generator, { structName, description, adoptedProtocols }, () => {
     generator.printNewlineIfNeeded();
     initializerImplementationForProperties(generator, properties);
     generator.printNewline();

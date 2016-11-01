@@ -12,7 +12,8 @@ import {
 import Inflector from 'inflected';
 
 import {
-  objectTypeNameWithGraphQLType
+  baseTypeNameFromGraphQLType,
+  typeNameFromGraphQLType
 } from './../types';
 
 import { pascalCase } from 'change-case';
@@ -31,11 +32,10 @@ export function valueForScalar(scalar, accessorName) {
   }
 }
 
-export function initializeProperty(generator, property, namespace) {
+export function initializeProperty(generator, property) {
   const propertyValue = valueForGraphQLType(
     generator.context,
     property,
-    namespace,
     'dictionary'
   );
   generator.printOnNewline(`_${property.propertyName} = ${propertyValue};`);
@@ -47,7 +47,6 @@ export function valueForGraphQLType(
     fieldType,
     fieldName,
   },
-  namespace,
   dictionaryName,
   dictionaryKey = fieldName
 ) {
@@ -58,7 +57,6 @@ export function valueForGraphQLType(
         fieldType: fieldType.ofType,
         fieldName,
       },
-      namespace,
       dictionaryName
     )
   }
@@ -72,7 +70,6 @@ export function valueForGraphQLType(
         fieldType: fieldType.ofType,
         fieldName,
       },
-      namespace,
       scopedDictionaryName,
       ''
     )
@@ -82,7 +79,6 @@ export function valueForGraphQLType(
   } else if (fieldType instanceof GraphQLEnumType) {
     return fieldType.value;
   } else {
-    const propertyName = pascalCase(Inflector.singularize(fieldName));
-    return `[[${objectTypeNameWithGraphQLType(propertyName, propertyName, namespace)} alloc] initWithDictionary:${dictionaryAccessor}]`;
+    return `[[${baseTypeNameFromGraphQLType(context, fieldType)} alloc] initWithDictionary:${dictionaryAccessor}]`;
   }
 }

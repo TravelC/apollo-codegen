@@ -17,30 +17,29 @@ import {
 } from 'graphql';
 
 import { camelCase, pascalCase } from 'change-case';
-import Inflector from 'inflected';
 
 import {
   typeNameFromGraphQLType
 } from './types';
 
-export function classDeclaration(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, namespace = '', closure) {
+export function classDeclaration(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, closure) {
   generator.print(wrap('', join(modifiers, ' '), ' '));
-  generator.printOnNewline(`@interface ${namespace}${ className } : ${ superClass } `);
+  generator.printOnNewline(`@interface ${ className } : ${ superClass } `);
   generator.print(wrap('<', join(adoptedProtocols, ', '), '>'));
   generator.printOnNewline(closure());
   generator.printOnNewline(`@end`);
 }
 
-export function classImplementation(generator, { className, modifiers, superClass, adoptedProtocols = [], properties },  namespace = '', closure) {
+export function classImplementation(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, closure) {
   generator.print(wrap('', join(modifiers, ' '), ' '));
-  generator.printOnNewline(`@implementation ${namespace}${ className }`);
+  generator.printOnNewline(`@implementation ${ className }`);
   // generator.print(wrap('<', join(adoptedProtocols, ', '), '>'));
   generator.printOnNewline(closure());
   generator.printOnNewline(`@end`);
 }
 
 
-export function structDeclaration(generator, { structName, description, adoptedProtocols = []}, namespace = '', closure) {
+export function structDeclaration(generator, { structName, description, adoptedProtocols = []}, closure) {
   generator.printNewlineIfNeeded();
   if (description != undefined) {
     generator.printOnNewline('// ' + description);
@@ -49,10 +48,10 @@ export function structDeclaration(generator, { structName, description, adoptedP
     className: structName,
     superClass: "NSObject",
     adoptedProtocols: adoptedProtocols,
-  }, namespace, closure)
+  }, closure)
 }
 
-export function structImplementation(generator, { structName, description, adoptedProtocols = [] }, namespace = '', closure) {
+export function structImplementation(generator, { structName, description, adoptedProtocols = [] },  closure) {
   generator.printNewlineIfNeeded();
   if (description != undefined) {
     generator.printOnNewline('// ' + description);
@@ -61,7 +60,7 @@ export function structImplementation(generator, { structName, description, adopt
     className: structName,
     superClass: "NSObject",
     adoptedProtocols: adoptedProtocols,
-  }, namespace, closure)
+  }, closure)
 }
 
 const builtInRetainMap = {
@@ -96,18 +95,18 @@ function nullabilityWithFieldType(type) {
   return type instanceof GraphQLNonNull ? 'nonnull' : 'nullable';
 }
 
-export function propertyDeclaration(generator, { propertyName, description, fieldType}, namespace = '') {
+export function propertyDeclaration(generator, { propertyName, description, fieldType}) {
   const nullabilitySpecifier = nullabilityWithFieldType(fieldType);
   const nullabilityComponent = nullabilitySpecifier.length > 0 ? (' ' + nullabilitySpecifier + ',') : '';
-  const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType, namespace + pascalCase(Inflector.singularize(propertyName)));
+  const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType);
 
-  generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${fieldTypeName}${propertyName};`);
+  generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${fieldTypeName} *${propertyName};`);
   generator.print(description && ` // ${description}`);
 }
 
-export function propertyDeclarations(generator, properties, namespace) {
+export function propertyDeclarations(generator, properties) {
   if (!properties) return;
-  properties.forEach(property => propertyDeclaration(generator, property, namespace));
+  properties.forEach(property => propertyDeclaration(generator, property));
 }
 
 export function protocolDeclaration(generator, { protocolName, adoptedProtocols, properties }, closure) {
