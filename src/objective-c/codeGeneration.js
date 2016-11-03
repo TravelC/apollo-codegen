@@ -69,8 +69,12 @@ function generateObjCSourceHeader(context) {
   generator.printOnNewline('#import <Foundation/Foundation.h>');
   generator.printNewline();
   generator.printOnNewline('#import <RNGraphQLNetworker/RNGraphQLDefinitions.h>');
+  generator.printNewline();
 
-  // generator.printOnNewline('#import <Apollo/Apollo-swift.h>');
+  const objectTypes = context.typesUsed.filter((type) => {
+    return (type instanceof GraphQLObjectType);
+  })
+  typeForwardDeclarationsForTypes(generator, objectTypes);
 
   context.typesUsed.forEach(type => {
     typeDeclarationForGraphQLType(generator, type);
@@ -89,6 +93,16 @@ function generateObjCSourceHeader(context) {
   });
 
   return generator.output;
+}
+
+function typeForwardDeclarationsForTypes(generator, types) {
+  generator.printOnNewline(`@class`);
+  generator.withIndent(() => {
+    types.forEach((fieldType, index) => {
+      const isLastItem = (types.length - 1) == index;
+      generator.printOnNewline(`${ fieldType.name }${ isLastItem ? ';' : ',' }`);
+    })
+  })
 }
 
 function generateObjCSourceImplementation(context, headerFile) {
@@ -152,15 +166,6 @@ export function structImplementationForOperation(
   );
 }
 
-function generateObjectPropertiesMapForFields(
-  fields,
-  mapAccumulator = {}
-) {
-  fields.forEach(({fields, type}) => {
-    console.log(type.name);
-  });
-}
-
 function objectPropertiesMapForType(
   type,
   mapAccumulator = {}
@@ -206,20 +211,6 @@ export function structDeclarationsForOperation(
       fields
     }
   );
-
-  // var aggregateMap = {};
-  // const properties = fields && propertiesFromFields(generator.context, fields);
-  // properties.forEach(property => {
-  //   const propertyName = baseTypeNameFromGraphQLType(generator.context, property.fieldType);
-  //   aggregateMap[propertyName] = aggregateMap[propertyName] === undefined ? {} : aggregateMap[propertyName];
-  //
-  //   const subFields = property.fields;
-  //   const subProperties = subFields && propertiesFromFields(generator.context, subFields);
-  //   subProperties.forEach(subProperty => {
-  //     aggregateMap[propertyName][subProperty.fieldName] = subProperty;
-  //   });
-  // })
-  // console.log(aggregateMap['UserType']);
 }
 
 export function classDeclarationForOperation(
@@ -447,22 +438,6 @@ export function structImplementationForSelectionSet(
     inlineFragments,
   }
 ) {
-  const properties = fields && propertiesFromFields(generator.context, fields);
-  if (properties) {
-    properties.filter(property => property.isComposite).forEach(property => {
-      structImplementationForSelectionSet(
-        generator,
-        {
-          structName: structNameForProperty(generator.context, property),
-          parentType: getNamedType(property.fieldType),
-          fields: property.fields,
-          fragmentSpreads: property.fragmentSpreads,
-          inlineFragments: property.inlineFragments,
-        }
-      );
-    });
-  }
-
   structImplementation(
     generator,
     {
@@ -470,7 +445,7 @@ export function structImplementationForSelectionSet(
       adoptedProtocols,
     },
     () => {
-
+      const properties = fields && propertiesFromFields(generator.context, fields);
       const fragmentProperties = fragmentSpreads && fragmentSpreads.map(fragmentName => {
         const fragment = generator.context.fragments[fragmentName];
         if (!fragment) {
@@ -588,22 +563,6 @@ export function structDeclarationForSelectionSet(
     inlineFragments,
   }
 ) {
-  const properties = fields && propertiesFromFields(generator.context, fields);
-  if (properties) {
-    properties.filter(property => property.isComposite).forEach(property => {
-      structDeclarationForSelectionSet(
-        generator,
-        {
-          structName: structNameForProperty(generator.context, property),
-          parentType: getNamedType(property.fieldType),
-          fields: property.fields,
-          fragmentSpreads: property.fragmentSpreads,
-          inlineFragments: property.inlineFragments,
-        }
-      );
-    });
-  }
-
   structDeclaration(
     generator,
     {
@@ -611,6 +570,7 @@ export function structDeclarationForSelectionSet(
       adoptedProtocols,
     },
     () => {
+      const properties = fields && propertiesFromFields(generator.context, fields);
       if (possibleTypes) {
         generator.printNewlineIfNeeded();
         generator.printOnNewline('public static let possibleTypes = [');
@@ -689,6 +649,8 @@ export function typeDeclarationForGraphQLType(generator, type) {
     enumerationDeclaration(generator, type);
   } else if (type instanceof GraphQLInputObjectType) {
     structDeclarationForInputObjectType(generator, type);
+  } else if (type instanceof GraphQLObjectType) {
+    classDeclarationForObjectType(generator, type);
   }
 }
 
@@ -705,6 +667,33 @@ function enumerationDeclaration(generator, type) {
     );
   });
   generator.print(';');
+}
+
+function classDeclarationForObjectType(generator, type) {
+  const { name: structName, description } = type;
+  // const adoptedProtocols = ['JSONEncodable'];
+  const adoptedProtocols = [];
+  const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
+
+  structDeclaration(generator, { structName, description, adoptedProtocols }, () => {
+    // generator.printOnNewline('- (nullable NSDictionary)dictionaryValue;');
+    generator.printNewline();
+    generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(nonnull NSDictionary *)dictionary;');
+    generator.printNewline();
+    propertyDeclarations(generator, properties);
+    generator.printNewline();
+  });
+}
+
+function classImplementationForObjectType(generator, type) {
+  const { name: structName } = type;
+  structImplementationForSelectionSet(
+    generator,
+    {
+      structName,
+      fields: Object.values(type.getFields())
+    }
+  );
 }
 
 function structDeclarationForInputObjectType(generator, type) {
@@ -728,6 +717,8 @@ export function typeImplementionForGraphQLType(generator, type) {
     enumerationImplementation(generator, type);
   } else if (type instanceof GraphQLInputObjectType) {
     structImplementationForInputObjectType(generator, type);
+  } else if (type instanceof GraphQLObjectType) {
+    classImplementationForObjectType(generator, type);
   }
 }
 

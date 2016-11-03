@@ -52,6 +52,8 @@ export function typeNameFromGraphQLType(context, type, bareTypeName) {
   if (type instanceof GraphQLList) {
     const subType = typeNameFromGraphQLType(context, type.ofType, bareTypeName);
     return `NSArray<${subType} *>`;
+  } else if (type instanceof GraphQLNonNull) {
+    return typeNameFromGraphQLType(context, type.ofType, bareTypeName);
   } else {
     return baseTypeNameFromGraphQLType(context, type, bareTypeName);
   }

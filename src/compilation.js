@@ -16,7 +16,9 @@ import {
   GraphQLObjectType,
   GraphQLInterfaceType,
   GraphQLUnionType,
-  GraphQLError
+  GraphQLError,
+  GraphQLList,
+  GraphQLNonNull
 } from 'graphql';
 
 import {
@@ -78,8 +80,19 @@ export class Compiler {
   }
 
   addTypeUsed(type) {
-    if (type instanceof GraphQLEnumType || type instanceof GraphQLInputObjectType) {
+    if (type instanceof GraphQLEnumType || type instanceof GraphQLInputObjectType || type instanceof GraphQLObjectType) {
       this.typesUsedSet.add(type);
+      // If it is an object type then add it's field types
+      if (type instanceof GraphQLInputObjectType || type instanceof GraphQLObjectType) {
+        const fieldArray = Object.keys(type._fields).map(function (key) { return type._fields[key].type; });
+        fieldArray.forEach(type => {
+          if (!this.typesUsedSet.has(type)) {
+            this.addTypeUsed(type);
+          }
+        });
+      }
+    } else if (type instanceof GraphQLList || type instanceof GraphQLNonNull) {
+      this.addTypeUsed(type.ofType);
     }
   }
 
