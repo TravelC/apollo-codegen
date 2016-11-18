@@ -111,22 +111,22 @@ describe('Swift code generation', function() {
             "}"
           public static let queryDocument = operationDefinition.appending(HeroDetails.fragmentDefinition)
 
-          public struct Data: GraphQLMappable {
+          public struct Data: GraphQLMapDecodable {
             public let hero: Hero?
 
-            public init(reader: GraphQLResultReader) throws {
-              hero = try reader.optionalValue(for: Field(responseName: "hero"))
+            public init(map: GraphQLMap) throws {
+              hero = try map.optionalValue(forKey: "hero")
             }
 
-            public struct Hero: GraphQLMappable {
+            public struct Hero: GraphQLMapDecodable {
               public let __typename: String
 
               public let fragments: Fragments
 
-              public init(reader: GraphQLResultReader) throws {
-                __typename = try reader.value(for: Field(responseName: "__typename"))
+              public init(map: GraphQLMap) throws {
+                __typename = try map.value(forKey: "__typename")
 
-                let heroDetails = try HeroDetails(reader: reader)
+                let heroDetails = try HeroDetails(map: map)
                 fragments = Fragments(heroDetails: heroDetails)
               }
 
@@ -165,22 +165,22 @@ describe('Swift code generation', function() {
             "}"
           public static let queryDocument = operationDefinition.appending(DroidDetails.fragmentDefinition)
 
-          public struct Data: GraphQLMappable {
+          public struct Data: GraphQLMapDecodable {
             public let hero: Hero?
 
-            public init(reader: GraphQLResultReader) throws {
-              hero = try reader.optionalValue(for: Field(responseName: "hero"))
+            public init(map: GraphQLMap) throws {
+              hero = try map.optionalValue(forKey: "hero")
             }
 
-            public struct Hero: GraphQLMappable {
+            public struct Hero: GraphQLMapDecodable {
               public let __typename: String
 
               public let fragments: Fragments
 
-              public init(reader: GraphQLResultReader) throws {
-                __typename = try reader.value(for: Field(responseName: "__typename"))
+              public init(map: GraphQLMap) throws {
+                __typename = try map.value(forKey: "__typename")
 
-                let droidDetails = try DroidDetails(reader: reader, ifTypeMatches: __typename)
+                let droidDetails = try DroidDetails(map: map, ifTypeMatches: __typename)
                 fragments = Fragments(droidDetails: droidDetails)
               }
 
@@ -223,22 +223,22 @@ describe('Swift code generation', function() {
             "}"
           public static let queryDocument = operationDefinition.appending(HeroDetails.fragmentDefinition)
 
-          public struct Data: GraphQLMappable {
+          public struct Data: GraphQLMapDecodable {
             public let hero: Hero?
 
-            public init(reader: GraphQLResultReader) throws {
-              hero = try reader.optionalValue(for: Field(responseName: "hero"))
+            public init(map: GraphQLMap) throws {
+              hero = try map.optionalValue(forKey: "hero")
             }
 
-            public struct Hero: GraphQLMappable {
+            public struct Hero: GraphQLMapDecodable {
               public let __typename: String
 
               public let asDroid: AsDroid?
 
-              public init(reader: GraphQLResultReader) throws {
-                __typename = try reader.value(for: Field(responseName: "__typename"))
+              public init(map: GraphQLMap) throws {
+                __typename = try map.value(forKey: "__typename")
 
-                asDroid = try AsDroid(reader: reader, ifTypeMatches: __typename)
+                asDroid = try AsDroid(map: map, ifTypeMatches: __typename)
               }
 
               public struct AsDroid: GraphQLConditionalFragment {
@@ -248,8 +248,8 @@ describe('Swift code generation', function() {
 
                 public let fragments: Fragments
 
-                public init(reader: GraphQLResultReader) throws {
-                  let heroDetails = try HeroDetails(reader: reader)
+                public init(map: GraphQLMap) throws {
+                  let heroDetails = try HeroDetails(map: map)
                   fragments = Fragments(heroDetails: heroDetails)
                 }
 
@@ -299,9 +299,9 @@ describe('Swift code generation', function() {
   });
 
   describe('#initializerDeclarationForProperties()', function() {
-    it(`should generate initializer for a property`, function() {
+    it(`should generate initializer for a porperty`, function() {
       initializerDeclarationForProperties(this.generator, [
-        { propertyName: 'episode', type: new GraphQLNonNull(schema.getType('Episode')), typeName: 'Episode' }
+        { propertyName: 'episode', fieldType: new GraphQLNonNull(schema.getType('Episode')) }
       ]);
 
       expect(this.generator.output).to.equal(stripIndent`
@@ -313,7 +313,7 @@ describe('Swift code generation', function() {
 
     it(`should generate initializer for an optional property`, function() {
       initializerDeclarationForProperties(this.generator, [
-        { propertyName: 'episode', type: schema.getType('Episode'), typeName: 'Episode?' }
+        { propertyName: 'episode', fieldType: schema.getType('Episode') }
       ]);
 
       expect(this.generator.output).to.equal(stripIndent`
@@ -325,8 +325,8 @@ describe('Swift code generation', function() {
 
     it(`should generate initializer for multiple properties`, function() {
       initializerDeclarationForProperties(this.generator, [
-        { propertyName: 'episode', type: schema.getType('Episode'), typeName: 'Episode?' },
-        { propertyName: 'scene', type: GraphQLString, typeName: 'String?' }
+        { propertyName: 'episode', fieldType: schema.getType('Episode') },
+        { propertyName: 'scene', fieldType: GraphQLString }
       ]);
 
       expect(this.generator.output).to.equal(stripIndent`
@@ -341,7 +341,7 @@ describe('Swift code generation', function() {
   describe('#mappedProperty()', function() {
     it(`should generate variables property for a variable`, function() {
       mappedProperty(this.generator, { propertyName: 'variables', propertyType: 'GraphQLMap?' }, [
-        { propertyName: 'episode', type: new GraphQLNonNull(schema.getType('Episode')) }
+        { propertyName: 'episode', fieldType: new GraphQLNonNull(schema.getType('Episode')) }
       ]);
 
       expect(this.generator.output).to.equal(stripIndent`
@@ -391,10 +391,10 @@ describe('Swift code generation', function() {
           public let name: String
           public let appearsIn: [Episode?]
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
-            name = try reader.value(for: Field(responseName: "name"))
-            appearsIn = try reader.list(for: Field(responseName: "appearsIn"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
+            name = try map.value(forKey: "name")
+            appearsIn = try map.list(forKey: "appearsIn")
           }
         }
       `);
@@ -424,9 +424,9 @@ describe('Swift code generation', function() {
           public let name: String
           public let primaryFunction: String?
 
-          public init(reader: GraphQLResultReader) throws {
-            name = try reader.value(for: Field(responseName: "name"))
-            primaryFunction = try reader.optionalValue(for: Field(responseName: "primaryFunction"))
+          public init(map: GraphQLMap) throws {
+            name = try map.value(forKey: "name")
+            primaryFunction = try map.optionalValue(forKey: "primaryFunction")
           }
         }
       `);
@@ -462,19 +462,19 @@ describe('Swift code generation', function() {
           public let name: String
           public let friends: [Friend?]?
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
-            name = try reader.value(for: Field(responseName: "name"))
-            friends = try reader.optionalList(for: Field(responseName: "friends"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
+            name = try map.value(forKey: "name")
+            friends = try map.optionalList(forKey: "friends")
           }
 
-          public struct Friend: GraphQLMappable {
+          public struct Friend: GraphQLMapDecodable {
             public let __typename: String
             public let name: String
 
-            public init(reader: GraphQLResultReader) throws {
-              __typename = try reader.value(for: Field(responseName: "__typename"))
-              name = try reader.value(for: Field(responseName: "name"))
+            public init(map: GraphQLMap) throws {
+              __typename = try map.value(forKey: "__typename")
+              name = try map.value(forKey: "name")
             }
           }
         }
@@ -511,11 +511,11 @@ describe('Swift code generation', function() {
 
           public let fragments: Fragments
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
-            name = try reader.value(for: Field(responseName: "name"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
+            name = try map.value(forKey: "name")
 
-            let moreHeroDetails = try MoreHeroDetails(reader: reader)
+            let moreHeroDetails = try MoreHeroDetails(map: map)
             fragments = Fragments(moreHeroDetails: moreHeroDetails)
           }
 
@@ -533,22 +533,18 @@ describe('Swift code generation', function() {
         structName: 'Hero',
         parentType: schema.getType('Character'),
         fields: [
-          {
-            responseName: 'name',
-            fieldName: 'name',
-            type: GraphQLString
-          }
+          { name: 'name', type: GraphQLString }
         ]
       });
 
       expect(this.generator.output).to.equal(stripIndent`
-        public struct Hero: GraphQLMappable {
+        public struct Hero: GraphQLMapDecodable {
           public let __typename: String
           public let name: String?
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
-            name = try reader.optionalValue(for: Field(responseName: "name"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
+            name = try map.optionalValue(forKey: "name")
           }
         }
       `);
@@ -560,37 +556,32 @@ describe('Swift code generation', function() {
         parentType: schema.getType('Character'),
         fields: [
           {
-            responseName: 'friends',
-            fieldName: 'friends',
+            name: 'friends',
             type: new GraphQLList(schema.getType('Character')),
             fields: [
-              {
-                responseName: 'name',
-                fieldName: 'name',
-                type: GraphQLString
-              }
+              { name: 'name', type: GraphQLString }
             ]
           }
         ]
       });
 
       expect(this.generator.output).to.equal(stripIndent`
-        public struct Hero: GraphQLMappable {
+        public struct Hero: GraphQLMapDecodable {
           public let __typename: String
           public let friends: [Friend?]?
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
-            friends = try reader.optionalList(for: Field(responseName: "friends"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
+            friends = try map.optionalList(forKey: "friends")
           }
 
-          public struct Friend: GraphQLMappable {
+          public struct Friend: GraphQLMapDecodable {
             public let __typename: String
             public let name: String?
 
-            public init(reader: GraphQLResultReader) throws {
-              __typename = try reader.value(for: Field(responseName: "__typename"))
-              name = try reader.optionalValue(for: Field(responseName: "name"))
+            public init(map: GraphQLMap) throws {
+              __typename = try map.value(forKey: "__typename")
+              name = try map.optionalValue(forKey: "name")
             }
           }
         }
@@ -608,26 +599,22 @@ describe('Swift code generation', function() {
         parentType: schema.getType('Character'),
         fragmentSpreads: ['HeroDetails'],
         fields: [
-          {
-            responseName: 'name',
-            fieldName: 'name',
-            type: GraphQLString
-          }
+          { name: 'name', type: GraphQLString }
         ]
       });
 
       expect(this.generator.output).to.equal(stripIndent`
-        public struct Hero: GraphQLMappable {
+        public struct Hero: GraphQLMapDecodable {
           public let __typename: String
           public let name: String?
 
           public let fragments: Fragments
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
-            name = try reader.optionalValue(for: Field(responseName: "name"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
+            name = try map.optionalValue(forKey: "name")
 
-            let heroDetails = try HeroDetails(reader: reader)
+            let heroDetails = try HeroDetails(map: map)
             fragments = Fragments(heroDetails: heroDetails)
           }
 
@@ -649,26 +636,22 @@ describe('Swift code generation', function() {
         parentType: schema.getType('Character'),
         fragmentSpreads: ['DroidDetails'],
         fields: [
-          {
-            responseName: 'name',
-            fieldName: 'name',
-            type: GraphQLString
-          }
+          { name: 'name', type: GraphQLString }
         ]
       });
 
       expect(this.generator.output).to.equal(stripIndent`
-        public struct Hero: GraphQLMappable {
+        public struct Hero: GraphQLMapDecodable {
           public let __typename: String
           public let name: String?
 
           public let fragments: Fragments
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
-            name = try reader.optionalValue(for: Field(responseName: "name"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
+            name = try map.optionalValue(forKey: "name")
 
-            let droidDetails = try DroidDetails(reader: reader, ifTypeMatches: __typename)
+            let droidDetails = try DroidDetails(map: map, ifTypeMatches: __typename)
             fragments = Fragments(droidDetails: droidDetails)
           }
 
@@ -685,8 +668,7 @@ describe('Swift code generation', function() {
         parentType: schema.getType('Character'),
         fields: [
           {
-            responseName: 'name',
-            fieldName: 'name',
+            name: 'name',
             type: new GraphQLNonNull(GraphQLString)
           }
         ],
@@ -695,13 +677,11 @@ describe('Swift code generation', function() {
             typeCondition: schema.getType('Droid'),
             fields: [
               {
-                responseName: 'name',
-                fieldName: 'name',
+                name: 'name',
                 type: new GraphQLNonNull(GraphQLString)
               },
               {
-                responseName: 'primaryFunction',
-                fieldName: 'primaryFunction',
+                name: 'primaryFunction',
                 type: GraphQLString
               }
             ]
@@ -710,17 +690,17 @@ describe('Swift code generation', function() {
       });
 
       expect(this.generator.output).to.equal(stripIndent`
-        public struct Hero: GraphQLMappable {
+        public struct Hero: GraphQLMapDecodable {
           public let __typename: String
           public let name: String
 
           public let asDroid: AsDroid?
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
-            name = try reader.value(for: Field(responseName: "name"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
+            name = try map.value(forKey: "name")
 
-            asDroid = try AsDroid(reader: reader, ifTypeMatches: __typename)
+            asDroid = try AsDroid(map: map, ifTypeMatches: __typename)
           }
 
           public struct AsDroid: GraphQLConditionalFragment {
@@ -730,9 +710,9 @@ describe('Swift code generation', function() {
             public let name: String
             public let primaryFunction: String?
 
-            public init(reader: GraphQLResultReader) throws {
-              name = try reader.value(for: Field(responseName: "name"))
-              primaryFunction = try reader.optionalValue(for: Field(responseName: "primaryFunction"))
+            public init(map: GraphQLMap) throws {
+              name = try map.value(forKey: "name")
+              primaryFunction = try map.optionalValue(forKey: "primaryFunction")
             }
           }
         }
@@ -759,15 +739,15 @@ describe('Swift code generation', function() {
       });
 
       expect(this.generator.output).to.equal(stripIndent`
-        public struct Hero: GraphQLMappable {
+        public struct Hero: GraphQLMapDecodable {
           public let __typename: String
 
           public let asDroid: AsDroid?
 
-          public init(reader: GraphQLResultReader) throws {
-            __typename = try reader.value(for: Field(responseName: "__typename"))
+          public init(map: GraphQLMap) throws {
+            __typename = try map.value(forKey: "__typename")
 
-            asDroid = try AsDroid(reader: reader, ifTypeMatches: __typename)
+            asDroid = try AsDroid(map: map, ifTypeMatches: __typename)
           }
 
           public struct AsDroid: GraphQLConditionalFragment {
@@ -777,8 +757,8 @@ describe('Swift code generation', function() {
 
             public let fragments: Fragments
 
-            public init(reader: GraphQLResultReader) throws {
-              let heroDetails = try HeroDetails(reader: reader)
+            public init(map: GraphQLMap) throws {
+              let heroDetails = try HeroDetails(map: map)
               fragments = Fragments(heroDetails: heroDetails)
             }
 
@@ -816,7 +796,7 @@ describe('Swift code generation', function() {
 
       expect(generator.output).to.equal(stripIndent`
         /// The input object sent when someone is creating a new review
-        public struct ReviewInput: GraphQLMapConvertible {
+        public struct ReviewInput: GraphQLMapEncodable {
           public let stars: Int /// 0-5 stars
           public let commentary: String? /// Comment about the movie, optional
 

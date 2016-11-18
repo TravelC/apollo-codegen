@@ -114,58 +114,6 @@ describe('Compiling query documents', () => {
     expect(filteredIR(typesUsed)).to.deep.equal(['Episode']);
   });
 
-  it(`should include the original field name for an aliased field`, () => {
-    const document = parse(`
-      query TwoHeroes {
-        r2: hero {
-          name
-        }
-        luke: hero(episode: EMPIRE) {
-          name
-        }
-      }
-    `);
-
-    const { operations } = compileToIR(schema, document);
-
-    expect(filteredIR(operations['TwoHeroes'])).to.deep.equal({
-      operationName: 'TwoHeroes',
-      operationType: 'query',
-      variables: [],
-      fragmentsReferenced: [],
-      fields: [
-        {
-          responseName: 'r2',
-          fieldName: 'hero',
-          type: 'Character',
-          fields: [
-            {
-              responseName: 'name',
-              fieldName: 'name',
-              type: 'String!'
-            },
-          ],
-          fragmentSpreads: [],
-          inlineFragments: []
-        },
-        {
-          responseName: 'luke',
-          fieldName: 'hero',
-          type: 'Character',
-          fields: [
-            {
-              responseName: 'name',
-              fieldName: 'name',
-              type: 'String!'
-            },
-          ],
-          fragmentSpreads: [],
-          inlineFragments: []
-        }
-      ]
-    });
-  });
-
   it(`should recursively flatten inline fragments with type conditions that match the parent type`, () => {
     const document = parse(`
       query Hero {
@@ -192,23 +140,19 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [
             {
-              responseName: 'id',
-              fieldName: 'id',
+              name: 'id',
               type: 'ID!'
             },
             {
-              responseName: 'name',
-              fieldName: 'name',
+              name: 'name',
               type: 'String!'
             },
             {
-              responseName: 'appearsIn',
-              fieldName: 'appearsIn',
+              name: 'appearsIn',
               type: '[Episode]!'
             }
           ],
@@ -249,13 +193,11 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: ['HeroDetails', 'MoreHeroDetails'],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [
             {
-              responseName: 'id',
-              fieldName: 'id',
+              name: 'id',
               type: 'ID!'
             }
           ],
@@ -271,13 +213,11 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: ['MoreHeroDetails'],
       fields: [
         {
-          responseName: 'id',
-          fieldName: 'id',
+          name: 'id',
           type: 'ID!'
         },
         {
-          responseName: 'name',
-          fieldName: 'name',
+          name: 'name',
           type: 'String!'
         }
       ],
@@ -290,13 +230,11 @@ describe('Compiling query documents', () => {
       typeCondition: 'Character',
       fragmentsReferenced: [],
       fields: [
-        { responseName: 'appearsIn',
-          fieldName: 'appearsIn',
+        { name: 'appearsIn',
           type: '[Episode]!'
         },
         {
-          responseName: 'id',
-          fieldName: 'id',
+          name: 'id',
           type: 'ID!'
         }
       ],
@@ -334,27 +272,22 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: ['HeroDetails'],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [
-            { responseName: 'appearsIn',
-              fieldName: 'appearsIn',
+            { name: 'appearsIn',
               type: '[Episode]!'
             },
             {
-              responseName: 'id',
-              fieldName: 'id',
+              name: 'id',
               type: 'ID!'
             },
             {
-              responseName: 'friends',
-              fieldName: 'friends',
+              name: 'friends',
               type: '[Character]',
               fields: [
                 {
-                  responseName: 'id',
-                  fieldName: 'id',
+                  name: 'id',
                   type: 'ID!'
                 }
               ],
@@ -374,13 +307,11 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'name',
-          fieldName: 'name',
+          name: 'name',
           type: 'String!'
         },
         {
-          responseName: 'id',
-          fieldName: 'id',
+          name: 'id',
           type: 'ID!'
         }
       ],
@@ -413,13 +344,11 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [
             {
-              responseName: 'name',
-              fieldName: 'name',
+              name: 'name',
               type: 'String!'
             }
           ],
@@ -429,13 +358,11 @@ describe('Compiling query documents', () => {
               typeCondition: 'Droid',
               fields: [
                 {
-                  responseName: 'name',
-                  fieldName: 'name',
+                  name: 'name',
                   type: 'String!'
                 },
                 {
-                  responseName: 'primaryFunction',
-                  fieldName: 'primaryFunction',
+                  name: 'primaryFunction',
                   type: 'String'
                 },
               ],
@@ -445,13 +372,11 @@ describe('Compiling query documents', () => {
               typeCondition: 'Human',
               fields: [
                 {
-                  responseName: 'name',
-                  fieldName: 'name',
+                  name: 'name',
                   type: 'String!'
                 },
                 {
-                  responseName: 'height',
-                  fieldName: 'height',
+                  name: 'height',
                   type: 'Float'
                 },
               ],
@@ -491,14 +416,12 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: ['DroidDetails', 'HumanDetails'],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fragmentSpreads: ['DroidDetails', 'HumanDetails'],
           fields: [
             {
-              responseName: 'name',
-              fieldName: 'name',
+              name: 'name',
               type: 'String!'
             }
           ],
@@ -513,8 +436,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'primaryFunction',
-          fieldName: 'primaryFunction',
+          name: 'primaryFunction',
           type: 'String'
         }
       ],
@@ -528,8 +450,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'height',
-          fieldName: 'height',
+          name: 'height',
           type: 'Float'
         }
       ],
@@ -561,14 +482,12 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: ['HeroDetails'],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fragmentSpreads: ['HeroDetails'],
           fields: [
             {
-              responseName: 'name',
-              fieldName: 'name',
+              name: 'name',
               type: 'String!'
             }
           ],
@@ -606,8 +525,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: ['HeroDetails'],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [],
           fragmentSpreads: ['HeroDetails'],
@@ -622,8 +540,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'name',
-          fieldName: 'name',
+          name: 'name',
           type: 'String!'
         }
       ],
@@ -633,13 +550,11 @@ describe('Compiling query documents', () => {
           typeCondition: 'Droid',
           fields: [
             {
-              responseName: 'name',
-              fieldName: 'name',
+              name: 'name',
               type: 'String!'
             },
             {
-              responseName: 'primaryFunction',
-              fieldName: 'primaryFunction',
+              name: 'primaryFunction',
               type: 'String'
             },
           ],
@@ -649,13 +564,11 @@ describe('Compiling query documents', () => {
           typeCondition: 'Human',
           fields: [
             {
-              responseName: 'name',
-              fieldName: 'name',
+              name: 'name',
               type: 'String!'
             },
             {
-              responseName: 'height',
-              fieldName: 'height',
+              name: 'height',
               type: 'Float'
             },
           ],
@@ -687,8 +600,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [],
           fragmentSpreads: [],
@@ -697,8 +609,7 @@ describe('Compiling query documents', () => {
               typeCondition: 'Droid',
               fields: [
                 {
-                  responseName: 'name',
-                  fieldName: 'name',
+                  name: 'name',
                   type: 'String!'
                 }
               ],
@@ -732,8 +643,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [],
           fragmentSpreads: [],
@@ -742,8 +652,7 @@ describe('Compiling query documents', () => {
               typeCondition: 'Droid',
               fields: [
                 {
-                  responseName: 'name',
-                  fieldName: 'name',
+                  name: 'name',
                   type: 'String!'
                 }
               ],
@@ -779,8 +688,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: ['HeroName'],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [],
           fragmentSpreads: [],
@@ -820,8 +728,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: ['DroidName'],
       fields: [
         {
-          responseName: 'hero',
-          fieldName: 'hero',
+          name: 'hero',
           type: 'Character',
           fields: [],
           fragmentSpreads: ['DroidName'],
@@ -857,8 +764,7 @@ describe('Compiling query documents', () => {
       fragmentsReferenced: [],
       fields: [
         {
-          responseName: 'search',
-          fieldName: 'search',
+          name: 'search',
           type: '[SearchResult]',
           fields: [],
           fragmentSpreads: [],
@@ -867,13 +773,11 @@ describe('Compiling query documents', () => {
               typeCondition: 'Droid',
               fields: [
                 {
-                  responseName: 'name',
-                  fieldName: 'name',
+                  name: 'name',
                   type: 'String!'
                 },
                 {
-                  responseName: 'primaryFunction',
-                  fieldName: 'primaryFunction',
+                  name: 'primaryFunction',
                   type: 'String'
                 },
               ],
@@ -883,13 +787,11 @@ describe('Compiling query documents', () => {
               typeCondition: 'Human',
               fields: [
                 {
-                  responseName: 'name',
-                  fieldName: 'name',
+                  name: 'name',
                   type: 'String!'
                 },
                 {
-                  responseName: 'height',
-                  fieldName: 'height',
+                  name: 'height',
                   type: 'Float'
                 },
               ],
