@@ -69,7 +69,6 @@ function generateObjCSourceHeader(context) {
   generator.printOnNewline('#import <Foundation/Foundation.h>');
   generator.printNewline();
   generator.printOnNewline('#import <RNGraphQLNetworker/RNGraphQLDefinitions.h>');
-  generator.printOnNewline('#import <Realm/Realm.h>');
   generator.printNewline();
 
   const objectTypes = context.typesUsed.filter((type) => {
@@ -115,7 +114,6 @@ function generateObjCSourceImplementation(context, headerFile) {
   generator.printOnNewline(`#import "${headerFile}"`);
   generator.printNewline();
   generator.printOnNewline('#import <RNFoundation/NSArray+Map.h>');
-  generator.printOnNewline('#import <Realm/Realm.h>');
 
   context.typesUsed.forEach(type => {
     typeImplementionForGraphQLType(generator, type);
@@ -684,8 +682,7 @@ function classDeclarationForObjectType(generator, type) {
     generator.printNewline();
     propertyDeclarations(generator, properties);
     generator.printNewline();
-  }, 'RLMObject');
-  generator.printOnNewline(`RLM_ARRAY_TYPE(${ structName })`);
+  });
 }
 
 function classImplementationForObjectType(generator, type) {
