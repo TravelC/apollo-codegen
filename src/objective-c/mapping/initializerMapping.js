@@ -33,6 +33,7 @@ export function valueForScalar(scalar, accessorName) {
 }
 
 export function initializeProperty(generator, property) {
+  console.log(property);
   const propertyValue = valueForGraphQLType(
     generator.context,
     property,
@@ -61,7 +62,7 @@ export function valueForGraphQLType(
     )
   }
 
-  const dictionaryAccessor = dictionaryName + (dictionaryKey.length ? `[@"${ dictionaryKey }"]` : '');
+  const dictionaryAccessor = dictionaryName + ( dictionaryKey.length ? `[@"${ dictionaryKey }"]` : '');
   if (fieldType instanceof GraphQLList) {
     const scopedDictionaryName = Inflector.singularize(fieldName);
     const subValue = valueForGraphQLType(
