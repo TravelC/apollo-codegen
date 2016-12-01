@@ -16,9 +16,7 @@ import {
   GraphQLObjectType,
   GraphQLInterfaceType,
   GraphQLUnionType,
-  GraphQLError,
-  GraphQLList,
-  GraphQLNonNull
+  GraphQLError
 } from 'graphql';
 
 import {
@@ -80,19 +78,13 @@ export class Compiler {
   }
 
   addTypeUsed(type) {
-    if (type instanceof GraphQLEnumType || type instanceof GraphQLInputObjectType || type instanceof GraphQLObjectType) {
+    if (type instanceof GraphQLEnumType || type instanceof GraphQLInputObjectType) {
       this.typesUsedSet.add(type);
-      // If it is an object type then add it's field types
-      if (type instanceof GraphQLInputObjectType || type instanceof GraphQLObjectType) {
-        const fieldArray = Object.keys(type._fields).map(function (key) { return type._fields[key].type; });
-        fieldArray.forEach(type => {
-          if (!this.typesUsedSet.has(type)) {
-            this.addTypeUsed(type);
-          }
-        });
+    }
+    if (type instanceof GraphQLInputObjectType) {
+      for (const field of Object.values(type.getFields())) {
+        this.addTypeUsed(getNamedType(field.type));
       }
-    } else if (type instanceof GraphQLList || type instanceof GraphQLNonNull) {
-      this.addTypeUsed(type.ofType);
     }
   }
 
@@ -165,14 +157,13 @@ export class Compiler {
           if (!field) {
             throw new GraphQLError(`Cannot query field "${fieldName}" on type "${String(parentType)}"`, [selection]);
           }
-          const fieldType = field.type;
 
           if (groupedFieldSet) {
             if (!groupedFieldSet[responseName]) {
               groupedFieldSet[responseName] = [];
             }
 
-            groupedFieldSet[responseName].push([parentType, { ...selection, type: fieldType }]);
+            groupedFieldSet[responseName].push([parentType, { responseName, fieldName, type: field.type, directives: selection.directives, selectionSet: selection.selectionSet }]);
           }
           break;
         }
@@ -245,29 +236,41 @@ export class Compiler {
   resolveFields(parentType, groupedFieldSet, groupedVisitedFragmentSet, fragmentsReferencedSet) {
     const fields = [];
 
-    for (let [fieldName, fieldSet] of Object.entries(groupedFieldSet)) {
+    for (let [responseName, fieldSet] of Object.entries(groupedFieldSet)) {
       fieldSet = fieldSet.filter(([typeCondition,]) => isTypeSubTypeOf(this.schema, parentType, typeCondition));
       if (fieldSet.length < 1) continue;
 
       const [,firstField] = fieldSet[0];
-      const fieldType = firstField.type;
+      const fieldName = firstField.fieldName;
+      const type = firstField.type;
 
-      let field = { name: fieldName, type: fieldType };
+      let field = { responseName, fieldName, type };
 
-      const bareFieldType = getNamedType(fieldType);
+      const isConditional = fieldSet.some(([,field]) => {
+        return field.directives && field.directives.some(directive => {
+          const directiveName = directive.name.value;
+          return directiveName == 'skip' || directiveName == 'include';
+        });
+      });
 
-      this.addTypeUsed(bareFieldType);
+      if (isConditional) {
+        field.isConditional = true;
+      }
 
-      if (isCompositeType(bareFieldType)) {
+      const bareType = getNamedType(type);
+
+      this.addTypeUsed(bareType);
+
+      if (isCompositeType(bareType)) {
         const subSelectionGroupedVisitedFragmentSet = new Map();
         const subSelectionGroupedFieldSet = this.mergeSelectionSets(
-          bareFieldType,
+          bareType,
           fieldSet,
           subSelectionGroupedVisitedFragmentSet
         );
 
         const { fields, fragmentSpreads, inlineFragments } = this.resolveFields(
-          bareFieldType,
+          bareType,
           subSelectionGroupedFieldSet,
           subSelectionGroupedVisitedFragmentSet,
           fragmentsReferencedSet
