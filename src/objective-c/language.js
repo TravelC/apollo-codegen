@@ -38,14 +38,14 @@ export function classImplementation(generator, { className, modifiers, superClas
   generator.printOnNewline(`@end`);
 }
 
-export function structDeclaration(generator, { structName, description, adoptedProtocols = []}, closure, superClass = 'NSObject') {
+export function structDeclaration(generator, { structName, description, adoptedProtocols = []}, closure) {
   generator.printNewlineIfNeeded();
   if (description != undefined) {
     generator.printOnNewline('// ' + description);
   }
   classDeclaration(generator, {
     className: structName,
-    superClass: superClass,
+    superClass: "NSObject",
     adoptedProtocols: adoptedProtocols,
   }, closure)
 }
