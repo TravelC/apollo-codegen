@@ -24,6 +24,7 @@ import {
 
 import {
   classDeclaration,
+  classImplementation,
   structDeclaration,
   propertyDeclaration,
   propertyDeclarations,
@@ -71,6 +72,7 @@ export function generateSource(context) {
 function generateObjCSourceHeader(context) {
   const generator = new CodeGenerator(context);
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
+  generator.printOnNewline(`#import <RNGraphQLNetworker/RNGraphQLDefinitions.h>`);
 
   // Generate forward declarations of all types Unsupported
   generator.printOnNewline('@class');
@@ -100,15 +102,16 @@ function generateObjCSourceHeader(context) {
 function generateObjCSourceImplementation(context) {
   const generator = new CodeGenerator(context);
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
+  generator.printOnNewline(`#import "RNNetworkFetchQueries.h"`);
 
   // Generate declarations for response types
-  Object.values(context.typesUsed).forEach(operation => {
-    classDeclarationForOperation(generator, operation);
-  });
+  // Object.values(context.typesUsed).forEach(operation => {
+  //   classDeclarationForOperation(generator, operation);
+  // });
 
   // Generate declarations for query types
   Object.values(context.operations).forEach(operation => {
-    classDeclarationForOperation(generator, operation);
+    classImplementationForOperation(generator, operation);
   });
 
   return generator.output;
@@ -147,9 +150,89 @@ export function classDeclarationForOperation(
     modifiers: ['public', 'final'],
     adoptedProtocols: [protocol]
   }, () => {
+    // if (source) {
+    //   generator.printOnNewline('public static let operationDefinition =');
+    //   generator.withIndent(() => {
+    //     multilineString(generator, source);
+    //   });
+    // }
+
+    if (fragmentsReferenced && fragmentsReferenced.length > 0) {
+      generator.printOnNewline('public static let queryDocument = operationDefinition');
+      fragmentsReferenced.forEach(fragment => {
+        generator.print(`.appending(${typeNameForFragmentName(fragment)}.fragmentDefinition)`)
+      });
+    }
+
+    if (variables && variables.length > 0) {
+      const properties = variables.map(({ name, type }) => {
+        const propertyName = camelCase(name);
+        const typeName = typeNameFromGraphQLType(generator.context, type);
+        const isOptional = !(type instanceof GraphQLNonNull || type.ofType instanceof GraphQLNonNull);
+        return { propertyName, type, typeName, isOptional };
+      });
+      generator.printNewlineIfNeeded();
+      propertyDeclarations(generator, properties);
+      generator.printNewlineIfNeeded();
+      initializerDeclarationForProperties(generator, properties);
+      generator.printNewlineIfNeeded();
+      // generator.printOnNewline(`public var variables: GraphQLMap?`);
+      // generator.withinBlock(() => {
+      //   generator.printOnNewline(wrap(
+      //     `return [`,
+      //     join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', '),
+      //     `]`
+      //   ));
+      // });
+    } else {
+      initializerDeclarationForProperties(generator, []);
+    }
+  });
+  structDeclarationForSelectionSet(
+    generator,
+    {
+      structName: operationName + "Data",
+      fields
+    }
+  );
+}
+
+export function classImplementationForOperation(
+  generator,
+  {
+    operationName,
+    operationType,
+    variables,
+    fields,
+    fragmentsReferenced,
+    source,
+  }
+) {
+
+  let className;
+  let protocol;
+
+  switch (operationType) {
+    case 'query':
+      className = `${pascalCase(operationName)}Query`;
+      protocol = 'GraphQLQuery';
+      break;
+    case 'mutation':
+      className = `${pascalCase(operationName)}Mutation`;
+      protocol = 'GraphQLMutation';
+      break;
+    default:
+      throw new GraphQLError(`Unsupported operation type "${operationType}"`);
+  }
+
+  classImplementation(generator, {
+    className,
+    modifiers: ['public', 'final'],
+    adoptedProtocols: [protocol]
+  }, () => {
     if (source) {
-      generator.printOnNewline('public static let operationDefinition =');
-      generator.withIndent(() => {
+      generator.printOnNewline('- (NSString *)operationDefinition');
+      generator.withinBlock(() => {
         multilineString(generator, source);
       });
     }
@@ -173,12 +256,12 @@ export function classDeclarationForOperation(
       generator.printNewlineIfNeeded();
       initializerDeclarationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
-      generator.printOnNewline(`public var variables: GraphQLMap?`);
+      generator.printOnNewline(`- (NSDictionary *)variables`);
       generator.withinBlock(() => {
         generator.printOnNewline(wrap(
-          `return [`,
-          join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', '),
-          `]`
+          `return @{`,
+          join(properties.map(({ propertyName }) => `"${propertyName}" : _${propertyName}`), ', '),
+          `}`
         ));
       });
     } else {
@@ -299,16 +382,16 @@ export function structDeclarationForSelectionSet(
 
     generator.printNewlineIfNeeded();
 
-    if (parentType) {
-      generator.printOnNewline('- (NSString *)__typename');
-      generator.withinBlock(() => {
-        if (isAbstractType(parentType)) {
-          generator.print(`: String`);
-        } else {
-          generator.printOnNewline(`return @"${String(parentType)}"`);
-        }
-      });
-    }
+                // if (parentType) {
+                //   generator.printOnNewline('- (NSString *)__typename');
+                //   generator.withinBlock(() => {
+                //     if (isAbstractType(parentType)) {
+                //       generator.print(`: String`);
+                //     } else {
+                //       generator.printOnNewline(`return @"${String(parentType)}"`);
+                //     }
+                //   });
+                // }
 
     propertyDeclarations(generator, properties);
 
@@ -323,41 +406,41 @@ export function structDeclarationForSelectionSet(
     }
 
     generator.printNewlineIfNeeded();
-    generator.printOnNewline('public init(reader: GraphQLResultReader) throws');
-    generator.withinBlock(() => {
-      if (parentType && isAbstractType(parentType)) {
-        generator.printOnNewline(`__typename = try reader.value(for: Field(responseName: "__typename"))`);
-      }
-
-      if (properties) {
-        properties.forEach(property => initializationForProperty(generator, property));
-      }
-
-      if (fragmentProperties && fragmentProperties.length > 0) {
-        generator.printNewlineIfNeeded();
-        fragmentProperties.forEach(({ propertyName, typeName, bareTypeName, isProperSuperType }) => {
-          generator.printOnNewline(`let ${propertyName} = try ${typeName}(reader: reader`);
-          if (isProperSuperType) {
-            generator.print(')');
-          } else {
-            generator.print(`, ifTypeMatches: __typename)`);
-          }
-        });
-        generator.printOnNewline(`fragments = Fragments(`);
-        generator.print(join(fragmentSpreads.map(fragmentName => {
-          const propertyName = camelCase(fragmentName);
-          return `${propertyName}: ${propertyName}`;
-        }), ', '));
-        generator.print(')');
-      }
-
-      if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
-        generator.printNewlineIfNeeded();
-        inlineFragmentProperties.forEach(({ propertyName, typeName, bareTypeName }) => {
-          generator.printOnNewline(`${propertyName} = try ${bareTypeName}(reader: reader, ifTypeMatches: __typename)`);
-        });
-      }
-    });
+    generator.printOnNewline('- (nonnull instancetype)initWithGraphQLReader:(GraphQLResultReader *)graphQLReader;');
+    // generator.withinBlock(() => {
+    //   if (parentType && isAbstractType(parentType)) {
+    //     generator.printOnNewline(`__typename = try reader.value(for: Field(responseName: "__typename"))`);
+    //   }
+    //
+    //   if (properties) {
+    //     properties.forEach(property => initializationForProperty(generator, property));
+    //   }
+    //
+    //   if (fragmentProperties && fragmentProperties.length > 0) {
+    //     generator.printNewlineIfNeeded();
+    //     fragmentProperties.forEach(({ propertyName, typeName, bareTypeName, isProperSuperType }) => {
+    //       generator.printOnNewline(`let ${propertyName} = try ${typeName}(reader: reader`);
+    //       if (isProperSuperType) {
+    //         generator.print(')');
+    //       } else {
+    //         generator.print(`, ifTypeMatches: __typename)`);
+    //       }
+    //     });
+    //     generator.printOnNewline(`fragments = Fragments(`);
+    //     generator.print(join(fragmentSpreads.map(fragmentName => {
+    //       const propertyName = camelCase(fragmentName);
+    //       return `${propertyName}: ${propertyName}`;
+    //     }), ', '));
+    //     generator.print(')');
+    //   }
+    //
+    //   if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
+    //     generator.printNewlineIfNeeded();
+    //     inlineFragmentProperties.forEach(({ propertyName, typeName, bareTypeName }) => {
+    //       generator.printOnNewline(`${propertyName} = try ${bareTypeName}(reader: reader, ifTypeMatches: __typename)`);
+    //     });
+    //   }
+    // });
 
     if (fragmentProperties && fragmentProperties.length > 0) {
       structDeclaration(

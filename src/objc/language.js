@@ -29,6 +29,26 @@ export function structDeclaration(generator, { structName, description, adoptedP
   )
 }
 
+export function classImplementation(generator, { className, superClass, adoptedProtocols = [], properties }, closure) {
+  generator.printNewlineIfNeeded();
+
+  if (adoptedProtocols.length > 0) {
+    generator.printOnNewline(`@interface ${ className } ()`);
+    generator.pushScope({ typeName: className });
+    generator.print(wrap('<', join([superClass, ...adoptedProtocols], ', '), '>'));
+    generator.popScope();
+    generator.printOnNewline(`@end`);
+  }
+
+  generator.printNewlineIfNeeded();
+  generator.printNewline();
+  generator.print(`@implementation ${ className }`);
+  generator.pushScope({ typeName: className });
+  generator.printOnNewline(closure());
+  generator.popScope();
+  generator.printOnNewline(`@end`);
+}
+
 export function propertyDeclaration(generator, { propertyName, type, typeName, isOptional, description }) {
   const nullabilitySpecifier = isOptional ? 'nullable' : 'nonnull';
   const propertyAttribute = propertyAttributeFromGraphQLType(type);
