@@ -6,19 +6,9 @@ import {
 export function classDeclaration(generator, { className, superClass, adoptedProtocols = [], properties }, closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
-  generator.print(`@interface ${ className }` : 'NSObject');
-  generator.print(wrap(': ', join([superClass, ...adoptedProtocols], ', ')));
+  generator.print(`@interface ${ className } : NSObject`);
+  generator.print(wrap('<', join([superClass, ...adoptedProtocols], ', '), '>'));
   generator.pushScope({ typeName: className });
-  generator.withinBlock(closure);
-  generator.popScope();
-}
-
-export function structDeclaration(generator, { structName, description, adoptedProtocols = [] }, closure) {
-  generator.printNewlineIfNeeded();
-  generator.printOnNewline(description && `/// ${description}`);
-  generator.printOnNewline(`public struct ${structName}`);
-  generator.print(wrap(': ', join(adoptedProtocols, ', ')));
-  generator.pushScope({ typeName: structName });
   generator.withinBlock(closure);
   generator.popScope();
 }

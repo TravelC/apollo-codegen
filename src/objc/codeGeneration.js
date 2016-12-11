@@ -24,7 +24,6 @@ import {
 
 import {
   classDeclaration,
-  structDeclaration,
   propertyDeclaration,
   propertyDeclarations
 } from './language';
@@ -172,7 +171,7 @@ export function classDeclarationForOperation(
     structDeclarationForSelectionSet(
       generator,
       {
-        structName: "Data",
+        className: "Data",
         fields
       }
     );
@@ -219,12 +218,11 @@ export function structDeclarationForFragment(
     source
   }
 ) {
-  const structName = pascalCase(fragmentName);
+  const className = pascalCase(fragmentName);
 
   structDeclarationForSelectionSet(generator, {
-    structName,
+    className,
     adoptedProtocols: ['GraphQLNamedFragment'],
-    parentType: typeCondition,
     possibleTypes: possibleTypesForType(generator.context, typeCondition),
     fields,
     fragmentSpreads,
@@ -242,9 +240,8 @@ export function structDeclarationForFragment(
 export function structDeclarationForSelectionSet(
   generator,
   {
-    structName,
+    className,
     adoptedProtocols = ['GraphQLMappable'],
-    parentType,
     possibleTypes,
     fields,
     fragmentSpreads,
@@ -367,8 +364,7 @@ export function structDeclarationForSelectionSet(
         structDeclarationForSelectionSet(
           generator,
           {
-            structName: property.bareTypeName,
-            parentType: property.typeCondition,
+            className: property.bareTypeName,
             possibleTypes: possibleTypesForType(generator.context, property.typeCondition),
             adoptedProtocols: ['GraphQLConditionalFragment'],
             fields: property.fields,
@@ -383,8 +379,7 @@ export function structDeclarationForSelectionSet(
         structDeclarationForSelectionSet(
           generator,
           {
-            structName: structNameForProperty(property),
-            parentType: getNamedType(property.type),
+            className: structNameForProperty(property),
             fields: property.fields,
             fragmentSpreads: property.fragmentSpreads,
             inlineFragments: property.inlineFragments
@@ -469,11 +464,11 @@ function enumerationDeclaration(generator, type) {
 }
 
 function structDeclarationForInputObjectType(generator, type) {
-  const { name: structName, description } = type;
+  const { className: structName, description } = type;
   const adoptedProtocols = ['GraphQLMapConvertible'];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
-  structDeclaration(generator, { structName, description, adoptedProtocols }, () => {
+  structDeclaration(generator, { className, description, adoptedProtocols }, () => {
     generator.printOnNewline(`public var graphQLMap: GraphQLMap`);
 
     // Compute permutations with and without optional properties
