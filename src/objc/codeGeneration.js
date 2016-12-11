@@ -56,7 +56,6 @@ export function generateSource(context) {
   // Object.values(context.fragments).forEach(fragment => {
   //   structDeclarationForFragment(generator, fragment);
   // });
-
   return [
     {
       output: generateObjCSourceHeader(context),
@@ -75,25 +74,37 @@ function generateObjCSourceHeader(context) {
   generator.printOnNewline(`#import <RNGraphQLNetworker/RNGraphQLDefinitions.h>`);
 
   // Generate forward declarations of all types Unsupported
-  generator.printOnNewline('@class');
-  generator.withIndent(() => {
-    context.typesUsed.forEach(type => {
-      generator.printOnNewline(type);
-      if (type != context.typesUsed.pop()) {
-        generator.print(',');
-      }
-    });
-  });
-  generator.print(';');
+  // generator.printOnNewline('@class');
+  // generator.withIndent(() => {
+  //   context.typesUsed.forEach((type, index) => {
+  //     generator.printOnNewline(type);
+  //     if (type != context.typesUsed.length - 1) {
+  //       generator.print(',');
+  //     }
+  //   });
+  // });
+  // generator.print(';');
 
-  // Generate declarations for response types
-  Object.values(context.typesUsed).forEach(operation => {
-    classDeclarationForOperation(generator, operation);
+  // // Generate declarations for response types
+  // Object.values(context.typesUsed).forEach(operation => {
+  //   classDeclarationForOperation(generator, operation);
+  // });
+  //
+  // // Generate declarations for query types
+  // Object.values(context.operations).forEach(operation => {
+  //   classDeclarationForOperation(generator, operation);
+  // });
+
+  context.typesUsed.forEach(type => {
+    typeDeclarationForGraphQLType(generator, type);
   });
 
-  // Generate declarations for query types
   Object.values(context.operations).forEach(operation => {
     classDeclarationForOperation(generator, operation);
+  });
+
+  Object.values(context.fragments).forEach(fragment => {
+    structDeclarationForFragment(generator, fragment);
   });
 
   return generator.output;
@@ -260,8 +271,8 @@ export function classImplementationForOperation(
       generator.withinBlock(() => {
         generator.printOnNewline(wrap(
           `return @{`,
-          join(properties.map(({ propertyName }) => `"${propertyName}" : _${propertyName}`), ', '),
-          `}`
+          join(properties.map(({ propertyName }) => `@"${propertyName}" : _${propertyName}`), ', '),
+          `};`
         ));
       });
     } else {
@@ -350,6 +361,20 @@ export function structDeclarationForSelectionSet(
   beforeClosure
 ) {
   const properties = fields && propertiesFromFields(generator.context, fields);
+  if (properties) {
+    properties.filter(property => property.isComposite).forEach(property => {
+      structDeclarationForSelectionSet(
+        generator,
+        {
+          structName: structNameForProperty(property),
+          parentType: getNamedType(property.type),
+          fields: property.fields,
+          fragmentSpreads: property.fragmentSpreads,
+          inlineFragments: property.inlineFragments
+        }
+      );
+    });
+  }
   structDeclaration(generator, { structName, adoptedProtocols }, () => {
     if (beforeClosure) {
       beforeClosure();
@@ -406,7 +431,7 @@ export function structDeclarationForSelectionSet(
     }
 
     generator.printNewlineIfNeeded();
-    generator.printOnNewline('- (nonnull instancetype)initWithGraphQLReader:(GraphQLResultReader *)graphQLReader;');
+    generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(nullable NSDictionary *)dictionary;');
     // generator.withinBlock(() => {
     //   if (parentType && isAbstractType(parentType)) {
     //     generator.printOnNewline(`__typename = try reader.value(for: Field(responseName: "__typename"))`);
@@ -475,20 +500,6 @@ export function structDeclarationForSelectionSet(
       });
     }
   });
-  if (properties) {
-    properties.filter(property => property.isComposite).forEach(property => {
-      structDeclarationForSelectionSet(
-        generator,
-        {
-          structName: structNameForProperty(property),
-          parentType: getNamedType(property.type),
-          fields: property.fields,
-          fragmentSpreads: property.fragmentSpreads,
-          inlineFragments: property.inlineFragments
-        }
-      );
-    });
-  }
 }
 
 export function initializationForProperty(generator, { propertyName, responseName, fieldName, type, isOptional }) {
@@ -570,7 +581,7 @@ function structDeclarationForInputObjectType(generator, type) {
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
   structDeclaration(generator, { structName, description, adoptedProtocols }, () => {
-    generator.printOnNewline(`public var graphQLMap: GraphQLMap`);
+    // generator.printOnNewline(`public var graphQLMap: GraphQLMap`);
 
     // Compute permutations with and without optional properties
     let permutations = [[]];
@@ -586,20 +597,22 @@ function structDeclarationForInputObjectType(generator, type) {
 
     permutations.forEach(properties => {
       generator.printNewlineIfNeeded();
-      generator.printOnNewline(`public init`);
-      generator.print('(');
-      generator.print(join(properties.map(({ propertyName, typeName }) =>
-        `${propertyName}: ${typeName}`
-      ), ', '));
-      generator.print(')');
-
-      generator.withinBlock(() => {
-        generator.printOnNewline(wrap(
-          `graphQLMap = [`,
-          join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', ') || ':',
-          `]`
-        ));
-      });
+      initializerDeclarationForProperties(generator, properties);
+      // generator.printNewlineIfNeeded();
+      // generator.printOnNewline(`public init`);
+      // generator.print('(');
+      // generator.print(join(properties.map(({ propertyName, typeName }) =>
+      //   `${propertyName}: ${typeName}`
+      // ), ', '));
+      // generator.print(')');
+      //
+      // generator.withinBlock(() => {
+      //   generator.printOnNewline(wrap(
+      //     `graphQLMap = [`,
+      //     join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', ') || ':',
+      //     `]`
+      //   ));
+      // });
     });
   });
 }
