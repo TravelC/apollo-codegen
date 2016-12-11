@@ -9,7 +9,8 @@ import {
   GraphQLString,
   GraphQLInt,
   GraphQLList,
-  GraphQLNonNull
+  GraphQLNonNull,
+  GraphQLInputObjectType
 } from 'graphql';
 
 import {
@@ -26,7 +27,7 @@ const schema = loadSchema(require.resolve('../starwars/schema.json'));
 
 import CodeGenerator from '../../src/utilities/CodeGenerator';
 
-import { compileToIR, printIR } from '../../src/compilation';
+import { compileToIR } from '../../src/compilation';
 
 describe('Swift code generation', function() {
   beforeEach(function() {
@@ -110,6 +111,8 @@ describe('Swift code generation', function() {
             "  }" +
             "}"
           public static let queryDocument = operationDefinition.appending(HeroDetails.fragmentDefinition)
+          public init() {
+          }
 
           public struct Data: GraphQLMappable {
             public let hero: Hero?
@@ -164,6 +167,8 @@ describe('Swift code generation', function() {
             "  }" +
             "}"
           public static let queryDocument = operationDefinition.appending(DroidDetails.fragmentDefinition)
+          public init() {
+          }
 
           public struct Data: GraphQLMappable {
             public let hero: Hero?
@@ -222,6 +227,8 @@ describe('Swift code generation', function() {
             "  }" +
             "}"
           public static let queryDocument = operationDefinition.appending(HeroDetails.fragmentDefinition)
+          public init() {
+          }
 
           public struct Data: GraphQLMappable {
             public let hero: Hero?
@@ -833,6 +840,33 @@ describe('Swift code generation', function() {
 
           public init(stars: Int, commentary: String?, favoriteColor: ColorInput?) {
             graphQLMap = ["stars": stars, "commentary": commentary, "favoriteColor": favoriteColor]
+          }
+        }
+      `);
+    });
+
+    it('should generate a valid struct declaration for a GraphQLInputObjectType with only optional fields', function() {
+      const generator = new CodeGenerator();
+
+      const inputType = new GraphQLInputObjectType({
+        name: 'OnlyOptionalFieldsInput',
+        fields: {
+          optionalString: { type: GraphQLString },
+        }
+      });
+
+      typeDeclarationForGraphQLType(generator, inputType);
+
+      expect(generator.output).to.equal(stripIndent`
+        public struct OnlyOptionalFieldsInput: GraphQLMapConvertible {
+          public var graphQLMap: GraphQLMap
+
+          public init() {
+            graphQLMap = [:]
+          }
+
+          public init(optionalString: String?) {
+            graphQLMap = ["optionalString": optionalString]
           }
         }
       `);

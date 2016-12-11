@@ -73,7 +73,7 @@ yargs
       target: {
         demand: false,
         describe: 'Code generation target language',
-        choices: ['swift', 'json', 'objc'],
+        choices: ['swift', 'json', 'objc', 'ts', 'typescript'],
         default: 'swift'
       },
       "passthrough-custom-scalars": {
