@@ -276,8 +276,8 @@ export function classImplementationForOperation(
         const isOptional = !(type instanceof GraphQLNonNull || type.ofType instanceof GraphQLNonNull);
         return { propertyName, type, typeName, isOptional };
       });
-      generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, properties, "test");
+      // generator.printNewlineIfNeeded();
+      // propertyDeclarations(generator, properties, "test");
       generator.printNewlineIfNeeded();
       initializerImplementationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
@@ -337,15 +337,20 @@ export function initializerImplementationForProperties(generator, properties) {
   });
 }
 
-export function mappedProperty(generator, { propertyName, propertyType }, properties) {
-  generator.printOnNewline(`public var ${propertyName}: ${propertyType}`);
+export function mappedProperty(generator, { functionName, nullable = true }, properties) {
+  generator.printOnNewline(`- (nonnull NSDictionary *)${functionName}`);
   generator.withinBlock(() => {
-    generator.printOnNewline(wrap(
-      `return [`,
-      join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', '),
-      `]`
-    ));
-  });
+    generator.printOnNewline('return @{');
+    generator.withIndent(() => {
+      properties.map(({ propertyName, propertyType, isOptional }) => {
+        const nullabilitySafeguard = isOptional ? ' ?: [NSNull null]' : '';
+        generator.printOnNewline(
+          `@"${propertyName}": ${valueForProperty(propertyName, propertyType)}${nullabilitySafeguard}, `
+        );
+      })
+    });
+    generator.printOnNewline('};');
+  })
 }
 
 export function structDeclarationForFragment(
@@ -807,22 +812,28 @@ function structImplementationForInputObjectType(generator, type) {
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
   structImplementation(generator, { structName, description, adoptedProtocols }, () => {
-    // Compute permutations with and without optional properties
-    let permutations = [[]];
-    for (const property of properties) {
-      permutations = [].concat(...permutations.map(prefix => {
-        if (property.isOptional) {
-          return [prefix, [...prefix, property]];
-        } else {
-          return [[...prefix, property]];
-        }
-      }));
-    }
-
-    permutations.forEach(properties => {
-      generator.printNewlineIfNeeded();
-      initializerImplementationForProperties(generator, properties);
-    });
+    generator.printNewlineIfNeeded();
+    initializerImplementationForProperties(generator, properties);
+    generator.printNewline();
+    mappedProperty(generator, { functionName: 'dictionaryRepresentation' }, properties);
+    generator.printNewlineIfNeeded();
   });
-  generator.printNewlineIfNeeded();
+}
+
+export function valueForProperty(propertyName, type) {
+  if (type instanceof GraphQLNonNull) {
+    return valueForProperty(propertyName, type.ofType);
+  }
+
+  if (type instanceof GraphQLEnumType) {
+    // return `[[self class] ${enumStringMappingFunctionNameForType(fieldType)}]`
+    return `NOT YET SUPPORTED`
+  } else if (type instanceof GraphQLInputObjectType) {
+    return `[_${camelCase(propertyName)} dictionaryRepresentation]`
+  } else if (type === GraphQLScalarType) {
+    const propertyAttribute = propertyAttributeFromGraphQLType(propertyType);
+    return propertyAttribute === 'copy' ?  `[_${propertyName} copy]` : `${propertyName}`
+  } else {
+    return `_${propertyName}`
+  }
 }
