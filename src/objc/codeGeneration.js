@@ -24,8 +24,9 @@ import {
 
 import {
   classDeclaration,
+  structDeclaration,
   propertyDeclaration,
-  propertyDeclarations
+  propertyDeclarations,
 } from './language';
 
 import { escapedString, multilineString } from './strings';
@@ -36,24 +37,25 @@ import {
 
 import CodeGenerator from '../utilities/CodeGenerator';
 
-export function generateObjCSource(context) {
+export function generateSource(context) {
   const generator = new CodeGenerator(context);
 
-  generator.printOnNewline('//  This file was automatically generated and should not be edited.');
-  generator.printNewline();
-  generator.printOnNewline('import Apollo');
+  // generator.printOnNewline('//  This file was automatically generated and should not be edited.');
+  // generator.printNewline();
+  // generator.printOnNewline('import Apollo');
+  //
+  // context.typesUsed.forEach(type => {
+  //   typeDeclarationForGraphQLType(generator, type);
+  // });
+  //
+  // Object.values(context.operations).forEach(operation => {
+  //   classDeclarationForOperation(generator, operation);
+  // });
+  //
+  // Object.values(context.fragments).forEach(fragment => {
+  //   structDeclarationForFragment(generator, fragment);
+  // });
 
-  context.typesUsed.forEach(type => {
-    typeDeclarationForGraphQLType(generator, type);
-  });
-
-  Object.values(context.operations).forEach(operation => {
-    classDeclarationForOperation(generator, operation);
-  });
-
-  Object.values(context.fragments).forEach(fragment => {
-    structDeclarationForFragment(generator, fragment);
-  });
   return [
     {
       output: generateObjCSourceHeader(context),
@@ -83,6 +85,9 @@ function generateObjCSourceHeader(context) {
   generator.print(';');
 
   // Generate declarations for response types
+  Object.values(context.typesUsed).forEach(operation => {
+    classDeclarationForOperation(generator, operation);
+  });
 
   // Generate declarations for query types
   Object.values(context.operations).forEach(operation => {
@@ -95,6 +100,16 @@ function generateObjCSourceHeader(context) {
 function generateObjCSourceImplementation(context) {
   const generator = new CodeGenerator(context);
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
+
+  // Generate declarations for response types
+  Object.values(context.typesUsed).forEach(operation => {
+    classDeclarationForOperation(generator, operation);
+  });
+
+  // Generate declarations for query types
+  Object.values(context.operations).forEach(operation => {
+    classDeclarationForOperation(generator, operation);
+  });
 
   return generator.output;
 }
@@ -129,7 +144,7 @@ export function classDeclarationForOperation(
 
   classDeclaration(generator, {
     className,
-    // modifiers: ['public', 'final'],
+    modifiers: ['public', 'final'],
     adoptedProtocols: [protocol]
   }, () => {
     if (source) {
@@ -154,7 +169,7 @@ export function classDeclarationForOperation(
         return { propertyName, type, typeName, isOptional };
       });
       generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, properties);
+      propertyDeclarations(generator, properties, "test");
       generator.printNewlineIfNeeded();
       initializerDeclarationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
@@ -166,34 +181,34 @@ export function classDeclarationForOperation(
           `]`
         ));
       });
+    } else {
+      initializerDeclarationForProperties(generator, []);
     }
-
-    structDeclarationForSelectionSet(
-      generator,
-      {
-        className: "Data",
-        fields
-      }
-    );
   });
+  structDeclarationForSelectionSet(
+    generator,
+    {
+      structName: operationName + "Data",
+      fields
+    }
+  );
 }
 
 export function initializerDeclarationForProperties(generator, properties) {
-  generator.printOnNewline(`public init`);
-  generator.print('(');
-  generator.print(join(properties.map(({ propertyName, type, typeName, isOptional }) =>
-    join([
-      `${propertyName}: ${typeName}`,
-      isOptional && ' = nil'
-    ])
-  ), ', '));
-  generator.print(')');
+  generator.printOnNewline(`- (nonnull instancetype)initWith`);
+  generator.print(
+    join(
+      properties.map(({ propertyName, type }, index) => {
+        const fieldName = index == 0 ? pascalCase(propertyName) : camelCase(propertyName);
+        const fieldNullibility = (type instanceof GraphQLNonNull) ? 'nonnull ' : 'nullable ';
+        const fieldTypeName = typeNameFromGraphQLType(generator.context, type);
 
-  generator.withinBlock(() => {
-    properties.forEach(({ propertyName }) => {
-      generator.printOnNewline(`self.${propertyName} = ${propertyName}`);
-    });
-  });
+        return `${fieldName}:(${fieldNullibility}${fieldTypeName} *)${propertyName}`
+      })
+      , ' '
+    )
+  );
+  generator.print(';');
 }
 
 export function mappedProperty(generator, { propertyName, propertyType }, properties) {
@@ -218,11 +233,12 @@ export function structDeclarationForFragment(
     source
   }
 ) {
-  const className = pascalCase(fragmentName);
+  const structName = pascalCase(fragmentName);
 
   structDeclarationForSelectionSet(generator, {
-    className,
+    structName,
     adoptedProtocols: ['GraphQLNamedFragment'],
+    parentType: typeCondition,
     possibleTypes: possibleTypesForType(generator.context, typeCondition),
     fields,
     fragmentSpreads,
@@ -240,8 +256,9 @@ export function structDeclarationForFragment(
 export function structDeclarationForSelectionSet(
   generator,
   {
-    className,
+    structName,
     adoptedProtocols = ['GraphQLMappable'],
+    parentType,
     possibleTypes,
     fields,
     fragmentSpreads,
@@ -249,6 +266,7 @@ export function structDeclarationForSelectionSet(
   },
   beforeClosure
 ) {
+  const properties = fields && propertiesFromFields(generator.context, fields);
   structDeclaration(generator, { structName, adoptedProtocols }, () => {
     if (beforeClosure) {
       beforeClosure();
@@ -260,8 +278,6 @@ export function structDeclarationForSelectionSet(
       generator.print(join(possibleTypes.map(type => `"${String(type)}"`), ', '));
       generator.print(']');
     }
-
-    const properties = fields && propertiesFromFields(generator.context, fields);
 
     const fragmentProperties = fragmentSpreads && fragmentSpreads.map(fragmentName => {
       const fragment = generator.context.fragments[fragmentName];
@@ -284,13 +300,14 @@ export function structDeclarationForSelectionSet(
     generator.printNewlineIfNeeded();
 
     if (parentType) {
-      generator.printOnNewline('public let __typename');
-
-      if (isAbstractType(parentType)) {
-        generator.print(`: String`);
-      } else {
-        generator.print(` = "${String(parentType)}"`);
-      }
+      generator.printOnNewline('- (NSString *)__typename');
+      generator.withinBlock(() => {
+        if (isAbstractType(parentType)) {
+          generator.print(`: String`);
+        } else {
+          generator.printOnNewline(`return @"${String(parentType)}"`);
+        }
+      });
     }
 
     propertyDeclarations(generator, properties);
@@ -364,7 +381,8 @@ export function structDeclarationForSelectionSet(
         structDeclarationForSelectionSet(
           generator,
           {
-            className: property.bareTypeName,
+            structName: property.bareTypeName,
+            parentType: property.typeCondition,
             possibleTypes: possibleTypesForType(generator.context, property.typeCondition),
             adoptedProtocols: ['GraphQLConditionalFragment'],
             fields: property.fields,
@@ -373,21 +391,21 @@ export function structDeclarationForSelectionSet(
         );
       });
     }
-
-    if (properties) {
-      properties.filter(property => property.isComposite).forEach(property => {
-        structDeclarationForSelectionSet(
-          generator,
-          {
-            className: structNameForProperty(property),
-            fields: property.fields,
-            fragmentSpreads: property.fragmentSpreads,
-            inlineFragments: property.inlineFragments
-          }
-        );
-      });
-    }
   });
+  if (properties) {
+    properties.filter(property => property.isComposite).forEach(property => {
+      structDeclarationForSelectionSet(
+        generator,
+        {
+          structName: structNameForProperty(property),
+          parentType: getNamedType(property.type),
+          fields: property.fields,
+          fragmentSpreads: property.fragmentSpreads,
+          inlineFragments: property.inlineFragments
+        }
+      );
+    });
+  }
 }
 
 export function initializationForProperty(generator, { propertyName, responseName, fieldName, type, isOptional }) {
@@ -464,11 +482,11 @@ function enumerationDeclaration(generator, type) {
 }
 
 function structDeclarationForInputObjectType(generator, type) {
-  const { className: structName, description } = type;
+  const { name: structName, description } = type;
   const adoptedProtocols = ['GraphQLMapConvertible'];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
-  structDeclaration(generator, { className, description, adoptedProtocols }, () => {
+  structDeclaration(generator, { structName, description, adoptedProtocols }, () => {
     generator.printOnNewline(`public var graphQLMap: GraphQLMap`);
 
     // Compute permutations with and without optional properties
@@ -495,7 +513,7 @@ function structDeclarationForInputObjectType(generator, type) {
       generator.withinBlock(() => {
         generator.printOnNewline(wrap(
           `graphQLMap = [`,
-          join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', '),
+          join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', ') || ':',
           `]`
         ));
       });

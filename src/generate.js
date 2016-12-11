@@ -3,16 +3,11 @@ import fs from 'fs'
 import { ToolError, logError } from './errors'
 import { loadSchema,  loadAndMergeQueryDocuments } from './loading'
 import { validateQueryDocument } from './validation'
-<<<<<<< HEAD
-import { compileToIR, stringifyIR } from './compilation'
-import { generateSwiftSource } from './swift'
-import { generateObjCSource } from './objc'
-=======
 import { compileToIR } from './compilation'
 import serializeToJSON from './serializeToJSON'
 import { generateSource as generateSwiftSource } from './swift'
 import { generateSource as generateTypescriptSource } from './typescript'
->>>>>>> apollostack/master
+import { generateSource as generateObjCSource } from './objc'
 
 export default function generate(inputPaths, schemaPath, outputPath, target, options) {
   const schema = loadSchema(schemaPath);
@@ -30,7 +25,7 @@ export default function generate(inputPaths, schemaPath, outputPath, target, opt
       outputs = [serializeToJSON(context)];
       break;
     case 'objc':
-      outputs = generateObjCSource(context, outputPath);
+      outputs = generateObjCSource(context);
       break;
     case 'ts':
     case 'typescript':

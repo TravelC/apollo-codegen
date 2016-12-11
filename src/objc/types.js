@@ -19,29 +19,46 @@ import {
   GraphQLEnumType
 } from 'graphql';
 
-const builtInScalarMap = {
-  [GraphQLString.name]: 'String',
-  [GraphQLInt.name]: 'Int',
-  [GraphQLFloat.name]: 'Float',
-  [GraphQLBoolean.name]: 'Bool',
-  [GraphQLID.name]: 'GraphQLID',
+const builtInScalarPropertyAttributesMap = {
+  [GraphQLString.name]: 'copy',
+  [GraphQLInt.name]: 'strong',
+  [GraphQLFloat.name]: 'strong',
+  [GraphQLBoolean.name]: 'strong',
+  [GraphQLID.name]: 'copy',
+  [GraphQLList.name]: 'copy',
 }
 
-export function typeNameFromGraphQLType(context, type, bareTypeName, isOptional) {
+const builtInScalarMap = {
+  [GraphQLString.name]: 'NSString',
+  [GraphQLInt.name]: 'NSNumber',
+  [GraphQLFloat.name]: 'NSNumber',
+  [GraphQLBoolean.name]: 'NSNumber',
+  [GraphQLID.name]: 'NSString',
+}
+
+export function propertyAttributeFromGraphQLType(type) {
   if (type instanceof GraphQLNonNull) {
-    return typeNameFromGraphQLType(context, type.ofType, bareTypeName, isOptional || false)
-  } else if (isOptional === undefined) {
-    isOptional = true;
+    return propertyAttributeFromGraphQLType(type.ofType);
+  } else if (type instanceof GraphQLList || type instanceof GraphQLScalarType) {
+    return builtInScalarPropertyAttributesMap[type.name];
+  } else {
+    return 'strong';
+  }
+}
+
+export function typeNameFromGraphQLType(context, type, bareTypeName) {
+  if (type instanceof GraphQLNonNull) {
+    return typeNameFromGraphQLType(context, type.ofType, bareTypeName)
   }
 
   let typeName;
   if (type instanceof GraphQLList) {
-    typeName = '[' + typeNameFromGraphQLType(context, type.ofType, bareTypeName) + ']';
+    typeName = 'NSArray<' + typeNameFromGraphQLType(context, type.ofType, bareTypeName) + ' *>';
   } else if (type instanceof GraphQLScalarType) {
     typeName = builtInScalarMap[type.name] || (context.passthroughCustomScalars ? type.name: GraphQLString);
   } else {
     typeName = bareTypeName || type.name;
   }
 
-  return isOptional ? typeName + '?' : typeName;
+  return typeName;
 }

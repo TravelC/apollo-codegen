@@ -1,1 +1,1 @@
-export { generateObjCSource } from './codeGeneration';
+export { generateSource } from './codeGeneration';

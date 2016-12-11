@@ -3,19 +3,37 @@ import {
   wrap,
 } from '../utilities/printing';
 
+import {
+  propertyAttributeFromGraphQLType
+} from './types';
+
 export function classDeclaration(generator, { className, superClass, adoptedProtocols = [], properties }, closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
   generator.print(`@interface ${ className } : NSObject`);
   generator.print(wrap('<', join([superClass, ...adoptedProtocols], ', '), '>'));
   generator.pushScope({ typeName: className });
-  generator.withinBlock(closure);
+  generator.printOnNewline(closure());
   generator.popScope();
+  generator.printOnNewline(`@end`);
 }
 
-export function propertyDeclaration(generator, { propertyName, typeName, description }) {
-  generator.printOnNewline(`public let ${propertyName}: ${typeName}`);
-  generator.print(description && ` /// ${description}`);
+export function structDeclaration(generator, { structName, description, adoptedProtocols = [] }, closure) {
+  classDeclaration(
+    generator,
+    {
+      className:structName,
+      adoptedProtocols
+    },
+    closure
+  )
+}
+
+export function propertyDeclaration(generator, { propertyName, type, typeName, isOptional, description }) {
+  const nullabilitySpecifier = isOptional ? 'nullable' : 'nonnull';
+  const propertyAttribute = propertyAttributeFromGraphQLType(type);
+  generator.printOnNewline(description && ` /// ${description}`);
+  generator.printOnNewline(`@property (nonatomic, ${propertyAttribute}, ${nullabilitySpecifier}, readonly) ${typeName} *${propertyName};`);
 }
 
 export function propertyDeclarations(generator, properties) {
