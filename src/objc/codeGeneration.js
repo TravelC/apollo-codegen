@@ -812,8 +812,22 @@ function structImplementationForInputObjectType(generator, type) {
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
   structImplementation(generator, { structName, description, adoptedProtocols }, () => {
-    generator.printNewlineIfNeeded();
-    initializerImplementationForProperties(generator, properties);
+    // Compute permutations with and without optional properties
+    let permutations = [[]];
+    for (const property of properties) {
+      permutations = [].concat(...permutations.map(prefix => {
+        if (property.isOptional) {
+          return [prefix, [...prefix, property]];
+        } else {
+          return [[...prefix, property]];
+        }
+      }));
+    }
+
+    permutations.forEach(properties => {
+      generator.printNewlineIfNeeded();
+      initializerImplementationForProperties(generator, properties);
+    });
     generator.printNewline();
     mappedProperty(generator, { functionName: 'dictionaryRepresentation' }, properties);
     generator.printNewlineIfNeeded();
