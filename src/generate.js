@@ -5,7 +5,7 @@ import { loadSchema,  loadAndMergeQueryDocuments } from './loading'
 import { validateQueryDocument } from './validation'
 import { compileToIR, stringifyIR } from './compilation'
 import { generateSwiftSource } from './swift'
-import { generateObjCSource } from './objective-c'
+import { generateObjCSource } from './objc'
 
 export default function generate(inputPaths, schemaPath, outputPath, target, options) {
   const schema = loadSchema(schemaPath);

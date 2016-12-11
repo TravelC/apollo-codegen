@@ -97,6 +97,9 @@ function generateObjCSourceHeader(context) {
 }
 
 function typeForwardDeclarationsForTypes(generator, types) {
+  if (!types.count) {
+    return;
+  }
   generator.printOnNewline(`@class`);
   generator.withIndent(() => {
     types.forEach((fieldType, index) => {
@@ -205,7 +208,7 @@ export function structDeclarationsForOperation(
     default:
       throw new GraphQLError(`Unsupported operation type "${operationType}"`);
   }
-
+  console.log(fields);
   structDeclarationForSelectionSet(
     generator,
     {
@@ -251,7 +254,12 @@ export function classDeclarationForOperation(
   },
   () => {
     if (variables && variables.length > 0) {
-      const properties = propertiesFromFields(generator.context, variables);
+      const properties = variables.map(({ name, type }) => {
+        const propertyName = camelCase(name);
+        const typeName = typeNameFromGraphQLType(generator.context, type);
+        const isOptional = !(type instanceof GraphQLNonNull || type.ofType instanceof GraphQLNonNull);
+        return { propertyName, type, typeName, isOptional };
+      });
       generator.printNewlineIfNeeded();
       initializerDeclarationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
@@ -332,14 +340,14 @@ export function classImplementationForOperation(
   });
 }
 
-export function initializerDeclarationForProperties(generator, properties = '') {
+export function initializerDeclarationForProperties(generator, properties) {
   generator.printOnNewline(`- (nonnull instancetype)initWith`);
   generator.print(
     join(
-      properties.map(({ propertyName, fieldType }, index) => {
+      properties.map(({ propertyName, type }, index) => {
         const fieldName = index == 0 ? pascalCase(propertyName) : camelCase(propertyName);
-        const fieldNullibility = (fieldType instanceof GraphQLNonNull) ? 'nonnull ' : 'nullable ';
-        const fieldTypeName = baseTypeNameFromGraphQLType(generator.context, fieldType);
+        const fieldNullibility = (type instanceof GraphQLNonNull) ? 'nonnull ' : 'nullable ';
+        const fieldTypeName = baseTypeNameFromGraphQLType(generator.context, type);
 
         return `${fieldName}:(${fieldNullibility}${fieldTypeName} *)${propertyName}`
       })
@@ -448,6 +456,7 @@ export function structImplementationForSelectionSet(
     },
     () => {
       const properties = fields && propertiesFromFields(generator.context, fields);
+
       const fragmentProperties = fragmentSpreads && fragmentSpreads.map(fragmentName => {
         const fragment = generator.context.fragments[fragmentName];
         if (!fragment) {
@@ -590,7 +599,6 @@ export function structDeclarationForSelectionSet(
         //   generator.print(` = "${String(parentType)}"`);
         // }
       }
-
       propertyDeclarations(generator, properties);
 
       generator.printNewlineIfNeeded();
@@ -612,21 +620,20 @@ export function propertiesFromFields(context, fields) {
 }
 
 export function propertyFromField(context, field) {
-  const { name: fieldName, type: fieldType, description, fragmentSpreads, inlineFragments } = field;
+  const name = field.name || field.responseName;
+  const propertyName = camelCase(name);
 
-  const propertyName = camelCase(fieldName);
+  const type = field.type;
+  const isOptional = field.isConditional || !(type instanceof GraphQLNonNull || type.ofType instanceof GraphQLNonNull);
+  const bareType = getNamedType(type);
 
-  let property = { fieldName, fieldType, propertyName, description };
-
-  const namedType = getNamedType(fieldType);
-
-  if (isCompositeType(namedType)) {
+  if (isCompositeType(bareType)) {
     const bareTypeName = pascalCase(Inflector.singularize(propertyName));
-    const typeName = typeNameFromGraphQLType(context, fieldType);
-    return { ...property, typeName, bareTypeName, fields: field.fields, isComposite: true, fragmentSpreads, inlineFragments };
+    const typeName = typeNameFromGraphQLType(context, type, bareTypeName, isOptional);
+    return { ...field, propertyName, typeName, bareTypeName, isOptional, isComposite: true };
   } else {
-    const typeName = typeNameFromGraphQLType(context, fieldType);
-    return { ...property, typeName, isComposite: false };
+    const typeName = typeNameFromGraphQLType(context, type, undefined, isOptional);
+    return { ...field, propertyName, typeName, isOptional, isComposite: false };
   }
 }
 
@@ -703,8 +710,13 @@ function structDeclarationForInputObjectType(generator, type) {
   const { name: structName, description } = type;
   // const adoptedProtocols = ['JSONEncodable'];
   const adoptedProtocols = [];
-  const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
-
+  const props = propertiesFromFields(generator.context, Object.values(type.getFields()));
+  const properties = props.map(({ name, type }) => {
+    const propertyName = camelCase(name);
+    const typeName = typeNameFromGraphQLType(generator.context, type);
+    const isOptional = !(type instanceof GraphQLNonNull || type.ofType instanceof GraphQLNonNull);
+    return { propertyName, type, typeName, isOptional };
+  });
   structDeclaration(generator, { structName, description, adoptedProtocols }, () => {
     // generator.printOnNewline('- (nullable NSDictionary)dictionaryValue;');
     generator.printNewline();

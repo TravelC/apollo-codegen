@@ -37,7 +37,7 @@ import {
 
 import CodeGenerator from '../utilities/CodeGenerator';
 
-export function generateSwiftSource(context) {
+export function generateObjCSource(context) {
   const generator = new CodeGenerator(context);
 
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
@@ -55,6 +55,40 @@ export function generateSwiftSource(context) {
   Object.values(context.fragments).forEach(fragment => {
     structDeclarationForFragment(generator, fragment);
   });
+  return [
+    {
+      output: generateObjCSourceHeader(context),
+      extension: '.h'
+    },
+    {
+      output: generateObjCSourceImplementation(context),
+      extension: '.m'
+    }
+  ];
+}
+
+function generateObjCSourceHeader(context) {
+  const generator = new CodeGenerator(context);
+  generator.printOnNewline('//  This file was automatically generated and should not be edited.');
+
+  // Generate forward declarations of all types Unsupported
+  generator.printOnNewline('@class');
+  generator.withIndent(() => {
+    context.typesUsed.forEach(type => {
+      generator.printOnNewline(type);
+      if (type != context.typesUsed.pop()) {
+        generator.print(',');
+      }
+    });
+  });
+  generator.print(';');
+
+  return generator.output;
+}
+
+function generateObjCSourceImplementation(context) {
+  const generator = new CodeGenerator(context);
+  generator.printOnNewline('//  This file was automatically generated and should not be edited.');
 
   return generator.output;
 }

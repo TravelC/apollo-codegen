@@ -38,7 +38,6 @@ export function classImplementation(generator, { className, modifiers, superClas
   generator.printOnNewline(`@end`);
 }
 
-
 export function structDeclaration(generator, { structName, description, adoptedProtocols = []}, closure, superClass = 'NSObject') {
   generator.printNewlineIfNeeded();
   if (description != undefined) {
@@ -95,13 +94,12 @@ function nullabilityWithFieldType(type) {
   return type instanceof GraphQLNonNull ? 'nonnull' : 'nullable';
 }
 
-export function propertyDeclaration(generator, { propertyName, description, fieldType}) {
+export function propertyDeclaration(generator, { propertyName, description, fieldType }) {
   const nullabilitySpecifier = nullabilityWithFieldType(fieldType);
   const nullabilityComponent = nullabilitySpecifier.length > 0 ? (' ' + nullabilitySpecifier + ',') : '';
   const fieldTypeName = typeNameFromGraphQLType(generator.context, fieldType);
 
-  // generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${fieldTypeName} *${propertyName};`);
-  generator.printOnNewline(`@property (${nullabilitySpecifier}) ${fieldTypeName} *${propertyName};`);
+  generator.printOnNewline(`@property (nonatomic, ${retainTypeWithFieldType(fieldType)},${nullabilityComponent} readonly) ${fieldTypeName} *${propertyName};`);
   generator.print(description && ` // ${description}`);
 }
 
