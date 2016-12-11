@@ -3,11 +3,10 @@ import {
   wrap,
 } from '../utilities/printing';
 
-export function classDeclaration(generator, { className, modifiers, superClass, adoptedProtocols = [], properties }, closure) {
+export function classDeclaration(generator, { className, superClass, adoptedProtocols = [], properties }, closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
-  generator.print(wrap('', join(modifiers, ' '), ' '));
-  generator.print(`class ${ className }`);
+  generator.print(`@interface ${ className }` : 'NSObject');
   generator.print(wrap(': ', join([superClass, ...adoptedProtocols], ', ')));
   generator.pushScope({ typeName: className });
   generator.withinBlock(closure);

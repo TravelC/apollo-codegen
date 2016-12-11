@@ -83,6 +83,13 @@ function generateObjCSourceHeader(context) {
   });
   generator.print(';');
 
+  // Generate declarations for response types
+
+  // Generate declarations for query types
+  Object.values(context.operations).forEach(operation => {
+    classDeclarationForOperation(generator, operation);
+  });
+
   return generator.output;
 }
 
@@ -123,7 +130,7 @@ export function classDeclarationForOperation(
 
   classDeclaration(generator, {
     className,
-    modifiers: ['public', 'final'],
+    // modifiers: ['public', 'final'],
     adoptedProtocols: [protocol]
   }, () => {
     if (source) {
