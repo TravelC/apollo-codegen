@@ -615,4 +615,5 @@ function structDeclarationForInputObjectType(generator, type) {
       // });
     });
   });
+  generator.printNewlineIfNeeded();
 }
