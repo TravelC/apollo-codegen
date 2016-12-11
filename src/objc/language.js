@@ -29,6 +29,17 @@ export function structDeclaration(generator, { structName, description, adoptedP
   )
 }
 
+export function structImplementation(generator, { structName, description, adoptedProtocols = [] }, closure) {
+  classImplementation(
+    generator,
+    {
+      className:structName,
+      adoptedProtocols
+    },
+    closure
+  )
+}
+
 export function classImplementation(generator, { className, superClass, adoptedProtocols = [], properties }, closure) {
   generator.printNewlineIfNeeded();
 

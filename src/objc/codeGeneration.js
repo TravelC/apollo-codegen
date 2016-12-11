@@ -26,6 +26,7 @@ import {
   classDeclaration,
   classImplementation,
   structDeclaration,
+  structImplementation,
   propertyDeclaration,
   propertyDeclarations,
 } from './language';
@@ -115,14 +116,26 @@ function generateObjCSourceImplementation(context) {
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printOnNewline(`#import "RNNetworkFetchQueries.h"`);
 
-  // Generate declarations for response types
-  // Object.values(context.typesUsed).forEach(operation => {
-  //   classDeclarationForOperation(generator, operation);
+  // // Generate declarations for response types
+  // // Object.values(context.typesUsed).forEach(operation => {
+  // //   classDeclarationForOperation(generator, operation);
+  // // });
+  //
+  // // Generate declarations for query types
+  // Object.values(context.operations).forEach(operation => {
+  //   classImplementationForOperation(generator, operation);
   // });
 
-  // Generate declarations for query types
+  context.typesUsed.forEach(type => {
+    typeImplementationForGraphQLType(generator, type);
+  });
+
   Object.values(context.operations).forEach(operation => {
     classImplementationForOperation(generator, operation);
+  });
+
+  Object.values(context.fragments).forEach(fragment => {
+    structImplementationForFragment(generator, fragment);
   });
 
   return generator.output;
@@ -289,6 +302,23 @@ export function classImplementationForOperation(
 }
 
 export function initializerDeclarationForProperties(generator, properties) {
+  generator.printOnNewline(`- (nonnull instancetype)initWith`);
+  generator.print(
+    join(
+      properties.map(({ propertyName, type }, index) => {
+        const fieldName = index == 0 ? pascalCase(propertyName) : camelCase(propertyName);
+        const fieldNullibility = (type instanceof GraphQLNonNull) ? 'nonnull ' : 'nullable ';
+        const fieldTypeName = typeNameFromGraphQLType(generator.context, type);
+
+        return `${fieldName}:(${fieldNullibility}${fieldTypeName} *)${propertyName}`
+      })
+      , ' '
+    )
+  );
+  generator.print(';');
+}
+
+export function initializerImplementationForProperties(generator, properties) {
   generator.printOnNewline(`- (nonnull instancetype)initWith`);
   generator.print(
     join(
@@ -559,6 +589,14 @@ export function typeDeclarationForGraphQLType(generator, type) {
   }
 }
 
+export function typeImplementationForGraphQLType(generator, type) {
+  if (type instanceof GraphQLEnumType) {
+    enumerationImplementation(generator, type);
+  } else if (type instanceof GraphQLInputObjectType) {
+    structImplementationForInputObjectType(generator, type);
+  }
+}
+
 function enumerationDeclaration(generator, type) {
   const { name, description } = type;
   const values = type.getValues();
@@ -581,8 +619,6 @@ function structDeclarationForInputObjectType(generator, type) {
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
 
   structDeclaration(generator, { structName, description, adoptedProtocols }, () => {
-    // generator.printOnNewline(`public var graphQLMap: GraphQLMap`);
-
     // Compute permutations with and without optional properties
     let permutations = [[]];
     for (const property of properties) {
@@ -598,21 +634,32 @@ function structDeclarationForInputObjectType(generator, type) {
     permutations.forEach(properties => {
       generator.printNewlineIfNeeded();
       initializerDeclarationForProperties(generator, properties);
-      // generator.printNewlineIfNeeded();
-      // generator.printOnNewline(`public init`);
-      // generator.print('(');
-      // generator.print(join(properties.map(({ propertyName, typeName }) =>
-      //   `${propertyName}: ${typeName}`
-      // ), ', '));
-      // generator.print(')');
-      //
-      // generator.withinBlock(() => {
-      //   generator.printOnNewline(wrap(
-      //     `graphQLMap = [`,
-      //     join(properties.map(({ propertyName }) => `"${propertyName}": ${propertyName}`), ', ') || ':',
-      //     `]`
-      //   ));
-      // });
+    });
+  });
+  generator.printNewlineIfNeeded();
+}
+
+function structImplementationForInputObjectType(generator, type) {
+  const { name: structName, description } = type;
+  const adoptedProtocols = ['GraphQLMapConvertible'];
+  const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
+
+  structImplementation(generator, { structName, description, adoptedProtocols }, () => {
+    // Compute permutations with and without optional properties
+    let permutations = [[]];
+    for (const property of properties) {
+      permutations = [].concat(...permutations.map(prefix => {
+        if (property.isOptional) {
+          return [prefix, [...prefix, property]];
+        } else {
+          return [[...prefix, property]];
+        }
+      }));
+    }
+
+    permutations.forEach(properties => {
+      generator.printNewlineIfNeeded();
+      initializerImplementationForProperties(generator, properties);
     });
   });
   generator.printNewlineIfNeeded();
