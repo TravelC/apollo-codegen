@@ -622,41 +622,47 @@ export function structImplementationForSelectionSet(
     // }
 
     generator.printNewlineIfNeeded();
-    generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(nullable NSDictionary *)dictionary;');
-    // generator.withinBlock(() => {
-    //   if (parentType && isAbstractType(parentType)) {
-    //     generator.printOnNewline(`__typename = try reader.value(for: Field(responseName: "__typename"))`);
-    //   }
-    //
-    //   if (properties) {
-    //     properties.forEach(property => initializationForProperty(generator, property));
-    //   }
-    //
-    //   if (fragmentProperties && fragmentProperties.length > 0) {
-    //     generator.printNewlineIfNeeded();
-    //     fragmentProperties.forEach(({ propertyName, typeName, bareTypeName, isProperSuperType }) => {
-    //       generator.printOnNewline(`let ${propertyName} = try ${typeName}(reader: reader`);
-    //       if (isProperSuperType) {
-    //         generator.print(')');
-    //       } else {
-    //         generator.print(`, ifTypeMatches: __typename)`);
-    //       }
-    //     });
-    //     generator.printOnNewline(`fragments = Fragments(`);
-    //     generator.print(join(fragmentSpreads.map(fragmentName => {
-    //       const propertyName = camelCase(fragmentName);
-    //       return `${propertyName}: ${propertyName}`;
-    //     }), ', '));
-    //     generator.print(')');
-    //   }
-    //
-    //   if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
-    //     generator.printNewlineIfNeeded();
-    //     inlineFragmentProperties.forEach(({ propertyName, typeName, bareTypeName }) => {
-    //       generator.printOnNewline(`${propertyName} = try ${bareTypeName}(reader: reader, ifTypeMatches: __typename)`);
-    //     });
-    //   }
-    // });
+    generator.printOnNewline('- (nonnull instancetype)initWithDictionary:(nullable NSDictionary *)dictionary');
+    generator.withinBlock(() => {
+      generator.printOnNewline('if (self = [super init])');
+      generator.withinBlock(() => {
+        generator.withinBlock(() => {
+          if (parentType && isAbstractType(parentType)) {
+            generator.printOnNewline(`__typename = try reader.value(for: Field(responseName: "__typename"))`);
+          }
+
+          if (properties) {
+            properties.forEach(property => initializationForProperty(generator, property));
+          }
+
+          if (fragmentProperties && fragmentProperties.length > 0) {
+            generator.printNewlineIfNeeded();
+            fragmentProperties.forEach(({ propertyName, typeName, bareTypeName, isProperSuperType }) => {
+              generator.printOnNewline(`let ${propertyName} = try ${typeName}(reader: reader`);
+              if (isProperSuperType) {
+                generator.print(')');
+              } else {
+                generator.print(`, ifTypeMatches: __typename)`);
+              }
+            });
+            generator.printOnNewline(`fragments = Fragments(`);
+            generator.print(join(fragmentSpreads.map(fragmentName => {
+              const propertyName = camelCase(fragmentName);
+              return `${propertyName}: ${propertyName}`;
+            }), ', '));
+            generator.print(')');
+          }
+
+          if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
+            generator.printNewlineIfNeeded();
+            inlineFragmentProperties.forEach(({ propertyName, typeName, bareTypeName }) => {
+              generator.printOnNewline(`${propertyName} = try ${bareTypeName}(reader: reader, ifTypeMatches: __typename)`);
+            });
+          }
+        });
+      });
+      generator.printOnNewline('return self;');
+    });
 
     if (fragmentProperties && fragmentProperties.length > 0) {
       structImplementation(
@@ -701,7 +707,7 @@ export function initializationForProperty(generator, { propertyName, responseNam
   const fieldArgs = join([`responseName: "${responseName}"`, responseName != fieldName ? `fieldName: "${fieldName}"` : null], ', ');
   const args = [`for: Field(${fieldArgs})`];
 
-  generator.printOnNewline(`${propertyName} = try reader.${methodName}(${ join(args, ', ') })`);
+  generator.printOnNewline(`_${propertyName} = dictionary[@"${fieldName}"];`);
 }
 
 export function propertiesFromFields(context, fields) {
