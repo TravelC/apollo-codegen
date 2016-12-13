@@ -1,1 +1,0 @@
-export { initializeProperty } from './initializerMapping';

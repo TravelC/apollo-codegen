@@ -269,6 +269,12 @@ export function classImplementationForOperation(
       });
     }
 
+    generator.printOnNewline('- (nonnull Class)responseDataClass');
+    generator.withinBlock(() => {
+        const responseDataClassName = operationName + 'Data';
+        generator.printOnNewline(`return NSClassFromString(@"${responseDataClassName}");`);
+    });
+
     if (variables && variables.length > 0) {
       const properties = variables.map(({ name, type }) => {
         const propertyName = camelCase(name);
