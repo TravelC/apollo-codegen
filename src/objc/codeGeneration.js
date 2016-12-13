@@ -699,15 +699,33 @@ export function structImplementationForSelectionSet(
   });
 }
 
+export function mapAssignmentValueForProperty(context, fieldName, type, responseName, dictionaryName = 'dictionary') {
+  if (type instanceof GraphQLNonNull) {
+    return mapAssignmentValueForProperty(
+      context,
+      fieldName,
+      type.ofType,
+      responseName
+    )
+  }
+  const typeName = structNameForProperty({responseName: responseName});
+  if (type instanceof GraphQLList) {
+    return 'list';
+  } else if (type instanceof GraphQLScalarType) {
+    return `${dictionaryName}[@"${fieldName}"]`
+  } else {
+    console.log(typeName);
+    return `[[${typeName} alloc] initWithDictionary:${dictionaryName}[@"${fieldName}"]]`;
+  }
+}
+
 export function initializationForProperty(generator, { propertyName, responseName, fieldName, type, isOptional }) {
-  const isList = type instanceof GraphQLList || type.ofType instanceof GraphQLList;
-
-  const methodName = isOptional ? (isList ? 'optionalList' : 'optionalValue') : (isList ? 'list' : 'value');
-
-  const fieldArgs = join([`responseName: "${responseName}"`, responseName != fieldName ? `fieldName: "${fieldName}"` : null], ', ');
-  const args = [`for: Field(${fieldArgs})`];
-
-  generator.printOnNewline(`_${propertyName} = dictionary[@"${fieldName}"];`);
+  generator.printOnNewline(`_${propertyName} = ${mapAssignmentValueForProperty(
+    generator.context,
+    fieldName,
+    type,
+    responseName
+  )};`);
 }
 
 export function propertiesFromFields(context, fields) {
@@ -732,8 +750,8 @@ export function propertyFromField(context, field) {
   }
 }
 
-export function structNameForProperty(property) {
-  return pascalCase(Inflector.singularize(property.responseName));
+export function structNameForProperty({responseName}) {
+  return pascalCase(Inflector.singularize(responseName));
 }
 
 export function typeNameForFragmentName(fragmentName) {
