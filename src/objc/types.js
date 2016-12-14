@@ -39,7 +39,9 @@ const builtInScalarMap = {
 export function propertyAttributeFromGraphQLType(type) {
   if (type instanceof GraphQLNonNull) {
     return propertyAttributeFromGraphQLType(type.ofType);
-  } else if (type instanceof GraphQLList || type instanceof GraphQLScalarType) {
+  } else if (type instanceof GraphQLList) {
+    return 'copy';
+  } else if (type instanceof GraphQLScalarType) {
     return builtInScalarPropertyAttributesMap[type.name];
   } else {
     return 'strong';

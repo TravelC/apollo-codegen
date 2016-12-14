@@ -14,7 +14,7 @@ import {
 
 import  { isTypeProperSuperTypeOf } from '../utilities/graphql'
 
-import { camelCase, pascalCase } from 'change-case';
+import { camelCase, pascalCase, snakeCase } from 'change-case';
 import Inflector from 'inflected';
 
 import {
@@ -100,6 +100,7 @@ function generateObjCSourceImplementation(context) {
   const generator = new CodeGenerator(context);
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printOnNewline(`#import "RNNetworkFetchQueries.h"`);
+  generator.printOnNewline(`#import <RNFoundation/NSArray+Map.h>`);
 
   context.typesUsed.forEach(type => {
     typeImplementationForGraphQLType(generator, type);
@@ -266,7 +267,7 @@ export function classImplementationForOperation(
       generator.withinBlock(() => {
         generator.printOnNewline(wrap(
           `return @{`,
-          join(properties.map(({ propertyName }) => `@"${propertyName}" : _${propertyName}`), ', '),
+          join(properties.map(({ propertyName }) => `@"${snakeCase(propertyName)}" : _${propertyName}`), ', '),
           `};`
         ));
       });
@@ -686,22 +687,36 @@ export function structImplementationForSelectionSet(
   });
 }
 
-export function mapAssignmentValueForProperty(context, fieldName, type, className, responseName, dictionaryName = 'dictionary') {
+export function mapAssignmentValueForProperty(context, fieldName, type, className, responseName, dictionaryName = 'dictionary', dictionaryKey = fieldName) {
   if (type instanceof GraphQLNonNull) {
     return mapAssignmentValueForProperty(
       context,
       fieldName,
       type.ofType,
       className,
-      responseName
+      responseName,
+      dictionaryName,
+      dictionaryKey
     )
   }
   if (type instanceof GraphQLList) {
-    return 'list';
+    const subDictionaryName = 'dict';
+    return `[${dictionaryName}[@"${fieldName}"] map:^id(NSDictionary *${subDictionaryName}) {
+          return ${mapAssignmentValueForProperty(
+            context,
+            fieldName,
+            type.ofType,
+            className,
+            responseName,
+            subDictionaryName,
+            ''
+          )};
+      }]`;
   } else if (type instanceof GraphQLScalarType) {
-    return `${dictionaryName}[@"${fieldName}"]`
+    return `${dictionaryName}[@"${fieldName}"]`;
   } else {
-    return `[[${className} alloc] initWithDictionary:${dictionaryName}[@"${fieldName}"]]`;
+    const dictionaryAccessor = dictionaryKey.length > 0 ? `${dictionaryName}[@"${fieldName}"]` : `${dictionaryName}`;
+    return `[[${className} alloc] initWithDictionary:${dictionaryAccessor}]`;
   }
 }
 
