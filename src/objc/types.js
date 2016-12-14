@@ -46,18 +46,18 @@ export function propertyAttributeFromGraphQLType(type) {
   }
 }
 
-export function typeNameFromGraphQLType(context, type, bareTypeName) {
+export function typeNameFromGraphQLType({context, type, bareTypeName, namespace}) {
   if (type instanceof GraphQLNonNull) {
-    return typeNameFromGraphQLType(context, type.ofType, bareTypeName)
+    return typeNameFromGraphQLType({context, type:type.ofType, bareTypeName, namespace})
   }
 
   let typeName;
   if (type instanceof GraphQLList) {
-    typeName = 'NSArray<' + typeNameFromGraphQLType(context, type.ofType, bareTypeName) + ' *>';
+    typeName = 'NSArray<' + typeNameFromGraphQLType({context, type:type.ofType, bareTypeName, namespace}) + ' *>';
   } else if (type instanceof GraphQLScalarType) {
     typeName = builtInScalarMap[type.name] || (context.passthroughCustomScalars ? type.name: GraphQLString);
   } else {
-    typeName = bareTypeName || type.name;
+    typeName = namespace + bareTypeName || type.name;
   }
 
   return typeName;

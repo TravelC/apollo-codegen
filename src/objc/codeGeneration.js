@@ -42,22 +42,6 @@ import CodeGenerator from '../utilities/CodeGenerator';
 
 export function generateSource(context) {
   const generator = new CodeGenerator(context);
-
-  // generator.printOnNewline('//  This file was automatically generated and should not be edited.');
-  // generator.printNewline();
-  // generator.printOnNewline('import Apollo');
-  //
-  // context.typesUsed.forEach(type => {
-  //   typeDeclarationForGraphQLType(generator, type);
-  // });
-  //
-  // Object.values(context.operations).forEach(operation => {
-  //   classDeclarationForOperation(generator, operation);
-  // });
-  //
-  // Object.values(context.fragments).forEach(fragment => {
-  //   structDeclarationForFragment(generator, fragment);
-  // });
   return [
     {
       output: generateObjCSourceHeader(context),
@@ -117,16 +101,6 @@ function generateObjCSourceImplementation(context) {
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
   generator.printOnNewline(`#import "RNNetworkFetchQueries.h"`);
 
-  // // Generate declarations for response types
-  // // Object.values(context.typesUsed).forEach(operation => {
-  // //   classDeclarationForOperation(generator, operation);
-  // // });
-  //
-  // // Generate declarations for query types
-  // Object.values(context.operations).forEach(operation => {
-  //   classImplementationForOperation(generator, operation);
-  // });
-
   context.typesUsed.forEach(type => {
     typeImplementationForGraphQLType(generator, type);
   });
@@ -151,7 +125,8 @@ export function classDeclarationForOperation(
     fields,
     fragmentsReferenced,
     source,
-  }
+  },
+  namespace
 ) {
 
   let className;
@@ -192,12 +167,12 @@ export function classDeclarationForOperation(
     if (variables && variables.length > 0) {
       const properties = variables.map(({ name, type }) => {
         const propertyName = camelCase(name);
-        const typeName = typeNameFromGraphQLType(generator.context, type);
+        const typeName = typeNameFromGraphQLType({context:generator.context, type, operationName});
         const isOptional = !(type instanceof GraphQLNonNull || type.ofType instanceof GraphQLNonNull);
         return { propertyName, type, typeName, isOptional };
       });
       generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, properties);
+      propertyDeclarations(generator, properties, namespace);
       generator.printNewlineIfNeeded();
       initializerDeclarationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
@@ -213,12 +188,14 @@ export function classDeclarationForOperation(
       initializerDeclarationForProperties(generator, []);
     }
   });
+  const baseStructName = operationName + 'Data';
   structDeclarationForSelectionSet(
     generator,
     {
-      structName: operationName + "Data",
+      structName: baseStructName,
       fields
-    }
+    },
+    baseStructName
   );
 }
 
@@ -278,12 +255,10 @@ export function classImplementationForOperation(
     if (variables && variables.length > 0) {
       const properties = variables.map(({ name, type }) => {
         const propertyName = camelCase(name);
-        const typeName = typeNameFromGraphQLType(generator.context, type);
+        const typeName = typeNameFromGraphQLType({context:generator.context, type, operationName});
         const isOptional = !(type instanceof GraphQLNonNull || type.ofType instanceof GraphQLNonNull);
         return { propertyName, type, typeName, isOptional };
       });
-      // generator.printNewlineIfNeeded();
-      // propertyDeclarations(generator, properties, "test");
       generator.printNewlineIfNeeded();
       initializerImplementationForProperties(generator, properties);
       generator.printNewlineIfNeeded();
@@ -299,23 +274,25 @@ export function classImplementationForOperation(
       initializerImplementationForProperties(generator, []);
     }
   });
+  const baseStructName = operationName + 'Data';
   structImplementationForSelectionSet(
     generator,
     {
-      structName: operationName + "Data",
+      structName: baseStructName,
       fields
-    }
+    },
+    baseStructName
   );
 }
 
-export function initializerDeclarationForProperties(generator, properties) {
+export function initializerDeclarationForProperties(generator, properties, namespace) {
   generator.printOnNewline(`- (nonnull instancetype)initWith`);
   generator.print(
     join(
       properties.map(({ propertyName, type }, index) => {
         const fieldName = index == 0 ? pascalCase(propertyName) : camelCase(propertyName);
         const fieldNullibility = (type instanceof GraphQLNonNull) ? 'nonnull ' : 'nullable ';
-        const fieldTypeName = typeNameFromGraphQLType(generator.context, type);
+        const fieldTypeName = typeNameFromGraphQLType({context:generator.context, type, namespace});
 
         return `${fieldName}:(${fieldNullibility}${fieldTypeName} *)${propertyName}`
       })
@@ -325,8 +302,8 @@ export function initializerDeclarationForProperties(generator, properties) {
   generator.print(';');
 }
 
-export function initializerImplementationForProperties(generator, properties) {
-  initializerDeclarationForProperties(generator, properties);
+export function initializerImplementationForProperties(generator, properties, namespace) {
+  initializerDeclarationForProperties(generator, properties, namespace);
   generator.withinBlock(() => {
     generator.withIndent(() => {
       generator.printOnNewline('if (self = [super init]) {');
@@ -401,24 +378,26 @@ export function structDeclarationForSelectionSet(
     fragmentSpreads,
     inlineFragments
   },
+  namespace = '',
   beforeClosure
 ) {
-  const properties = fields && propertiesFromFields(generator.context, fields);
+  const properties = fields && propertiesFromFields(generator.context, fields, namespace);
   if (properties) {
     properties.filter(property => property.isComposite).forEach(property => {
       structDeclarationForSelectionSet(
         generator,
         {
-          structName: structNameForProperty(property),
+          structName: namespace + structNameForProperty(property),
           parentType: getNamedType(property.type),
           fields: property.fields,
           fragmentSpreads: property.fragmentSpreads,
           inlineFragments: property.inlineFragments
-        }
+        },
+        namespace
       );
     });
   }
-  structDeclaration(generator, { structName, adoptedProtocols }, () => {
+  structDeclaration(generator, { structName: structName, adoptedProtocols }, () => {
     if (beforeClosure) {
       beforeClosure();
     }
@@ -461,16 +440,16 @@ export function structDeclarationForSelectionSet(
                 //   });
                 // }
 
-    propertyDeclarations(generator, properties);
+    propertyDeclarations(generator, properties, namespace);
 
     if (fragmentProperties && fragmentProperties.length > 0) {
       generator.printNewlineIfNeeded();
-      propertyDeclaration(generator, { propertyName: 'fragments', typeName: 'Fragments' })
+      propertyDeclaration(generator, { propertyName: 'fragments', typeName: 'Fragments' }, namespace)
     }
 
     if (inlineFragmentProperties && inlineFragmentProperties.length > 0) {
       generator.printNewlineIfNeeded();
-      propertyDeclarations(generator, inlineFragmentProperties);
+      propertyDeclarations(generator, inlineFragmentProperties, namespace);
     }
 
     generator.printNewlineIfNeeded();
@@ -514,14 +493,14 @@ export function structDeclarationForSelectionSet(
       structDeclaration(
         generator,
         {
-          structName: 'Fragments'
+          structName: namespace + 'Fragments'
         },
         () => {
           fragmentProperties.forEach(({ propertyName, typeName, isProperSuperType }) => {
             if (!isProperSuperType) {
               typeName += '?';
             }
-            propertyDeclaration(generator, { propertyName, typeName });
+            propertyDeclaration(generator, { propertyName, typeName }, namespace);
           })
         }
       );
@@ -555,24 +534,26 @@ export function structImplementationForSelectionSet(
     fragmentSpreads,
     inlineFragments
   },
-  beforeClosure
+  namespace = '',
+  beforeClosure,
 ) {
-  const properties = fields && propertiesFromFields(generator.context, fields);
+  const properties = fields && propertiesFromFields(generator.context, fields, namespace);
   if (properties) {
     properties.filter(property => property.isComposite).forEach(property => {
       structImplementationForSelectionSet(
         generator,
         {
-          structName: structNameForProperty(property),
+          structName: namespace + structNameForProperty(property),
           parentType: getNamedType(property.type),
           fields: property.fields,
           fragmentSpreads: property.fragmentSpreads,
           inlineFragments: property.inlineFragments
-        }
+        },
+        namespace
       );
     });
   }
-  structImplementation(generator, { structName, adoptedProtocols }, () => {
+  structImplementation(generator, { structName: structName, adoptedProtocols }, () => {
     if (beforeClosure) {
       beforeClosure();
     }
@@ -638,7 +619,7 @@ export function structImplementationForSelectionSet(
           }
 
           if (properties) {
-            properties.forEach(property => initializationForProperty(generator, property));
+            properties.forEach(property => initializationForProperty(generator, property, namespace));
           }
 
           if (fragmentProperties && fragmentProperties.length > 0) {
@@ -674,7 +655,7 @@ export function structImplementationForSelectionSet(
       structImplementation(
         generator,
         {
-          structName: 'Fragments'
+          structName: namespace + 'Fragments'
         },
         () => {
           fragmentProperties.forEach(({ propertyName, typeName, isProperSuperType }) => {
@@ -705,40 +686,42 @@ export function structImplementationForSelectionSet(
   });
 }
 
-export function mapAssignmentValueForProperty(context, fieldName, type, responseName, dictionaryName = 'dictionary') {
+export function mapAssignmentValueForProperty(context, fieldName, type, className, responseName, dictionaryName = 'dictionary') {
   if (type instanceof GraphQLNonNull) {
     return mapAssignmentValueForProperty(
       context,
       fieldName,
       type.ofType,
+      className,
       responseName
     )
   }
-  const typeName = structNameForProperty({responseName: responseName});
   if (type instanceof GraphQLList) {
     return 'list';
   } else if (type instanceof GraphQLScalarType) {
     return `${dictionaryName}[@"${fieldName}"]`
   } else {
-    console.log(typeName);
-    return `[[${typeName} alloc] initWithDictionary:${dictionaryName}[@"${fieldName}"]]`;
+    return `[[${className} alloc] initWithDictionary:${dictionaryName}[@"${fieldName}"]]`;
   }
 }
 
-export function initializationForProperty(generator, { propertyName, responseName, fieldName, type, isOptional }) {
+export function initializationForProperty(generator, { propertyName, responseName, fieldName, type, isOptional }, namespace) {
+  const className = namespace + structNameForProperty({responseName: responseName});
+  console.log(className);
   generator.printOnNewline(`_${propertyName} = ${mapAssignmentValueForProperty(
     generator.context,
     fieldName,
     type,
+    className,
     responseName
   )};`);
 }
 
-export function propertiesFromFields(context, fields) {
-  return fields.map(field => propertyFromField(context, field));
+export function propertiesFromFields(context, fields, namespace) {
+  return fields.map(field => propertyFromField(context, field, namespace));
 }
 
-export function propertyFromField(context, field) {
+export function propertyFromField(context, field, namespace) {
   const name = field.name || field.responseName;
   const propertyName = camelCase(name);
 
@@ -748,10 +731,10 @@ export function propertyFromField(context, field) {
 
   if (isCompositeType(bareType)) {
     const bareTypeName = pascalCase(Inflector.singularize(propertyName));
-    const typeName = typeNameFromGraphQLType(context, type, bareTypeName, isOptional);
+    const typeName = typeNameFromGraphQLType({context, type, bareTypeName, isOptional, namespace});
     return { ...field, propertyName, typeName, bareTypeName, isOptional, isComposite: true };
   } else {
-    const typeName = typeNameFromGraphQLType(context, type, undefined, isOptional);
+    const typeName = typeNameFromGraphQLType({context, type, isOptional, namespace});
     return { ...field, propertyName, typeName, isOptional, isComposite: false };
   }
 }
@@ -772,19 +755,19 @@ export function possibleTypesForType(context, type) {
   }
 }
 
-export function typeDeclarationForGraphQLType(generator, type) {
+export function typeDeclarationForGraphQLType(generator, type, namespace = '') {
   if (type instanceof GraphQLEnumType) {
     enumerationDeclaration(generator, type);
   } else if (type instanceof GraphQLInputObjectType) {
-    structDeclarationForInputObjectType(generator, type);
+    structDeclarationForInputObjectType(generator, type, namespace);
   }
 }
 
-export function typeImplementationForGraphQLType(generator, type) {
+export function typeImplementationForGraphQLType(generator, type, namespace = '') {
   if (type instanceof GraphQLEnumType) {
     enumerationImplementation(generator, type);
   } else if (type instanceof GraphQLInputObjectType) {
-    structImplementationForInputObjectType(generator, type);
+    structImplementationForInputObjectType(generator, type, namespace);
   }
 }
 
@@ -804,7 +787,7 @@ function enumerationDeclaration(generator, type) {
   generator.printOnNewline(`extension ${name}: JSONDecodable, JSONEncodable {}`);
 }
 
-function structDeclarationForInputObjectType(generator, type) {
+function structDeclarationForInputObjectType(generator, type, namespace) {
   const { name: structName, description } = type;
   const adoptedProtocols = ['GraphQLMapConvertible'];
   const properties = propertiesFromFields(generator.context, Object.values(type.getFields()));
@@ -824,7 +807,7 @@ function structDeclarationForInputObjectType(generator, type) {
 
     permutations.forEach(properties => {
       generator.printNewlineIfNeeded();
-      initializerDeclarationForProperties(generator, properties);
+      initializerDeclarationForProperties(generator, properties, namespace);
     });
 
     // Declare properties

@@ -67,7 +67,7 @@ export function propertyDeclaration(generator, { propertyName, type, typeName, i
   generator.printOnNewline(`@property (nonatomic, ${propertyAttribute}, ${nullabilitySpecifier}, readonly) ${typeName} *${propertyName};`);
 }
 
-export function propertyDeclarations(generator, properties) {
+export function propertyDeclarations(generator, properties, namespace) {
   if (!properties) return;
   properties.forEach(property => propertyDeclaration(generator, property));
 }
